@@ -17,6 +17,8 @@ from model_search import Network
 from genotypes import PRIMITIVES
 from genotypes import Genotype
 import random
+sys.path.append('../')
+from min_norm_solvers import MinNormSolver, gradient_normalizers
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
@@ -314,6 +316,30 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
             logits = model(input_search)
             loss_a = criterion(logits, target_search)
             loss_a.backward()
+            # ---- MGDA ----
+            
+            grads = {}
+            # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
+            for param in model.arch_parameters():
+                if param.grad is not None:
+                    grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
+
+            optimizer_a.zero_grad()
+            param_loss = model.param_number()
+            param_loss.backward()
+            for param in model.arch_parameters():
+                if param.grad is not None:
+                    grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
+
+            optimizer_a.zero_grad()
+            sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+            # loss_a = criterion(logits, target_search)
+            # param_loss = model.param_number()
+            loss = sol[0] * loss_a + sol[1] * param_loss
+            loss.backward()
+            optimizer_a.step()
+
+            # ---- MGDA ----
             nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
             optimizer_a.step()
 
