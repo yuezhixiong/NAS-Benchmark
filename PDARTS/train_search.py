@@ -21,7 +21,7 @@ import random
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
 parser.add_argument('--workers', type=int, default=2, help='number of workers to load dataset')
-parser.add_argument('--batch_size', type=int, default=96, help='batch size')
+parser.add_argument('--batch_size', type=int, default=32, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.0, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -34,13 +34,13 @@ parser.add_argument('--layers', type=int, default=5, help='total number of layer
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='/tmp/checkpoints/', help='experiment path')
+parser.add_argument('--save', type=str, default='test_adv', help='experiment path')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--tmp_data_dir', type=str, default='/tmp/cache/', help='temp data dir')
+parser.add_argument('--tmp_data_dir', type=str, default='/home/yuezx/dataset.yzx/', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 parser.add_argument('--dropout_rate', action='append', default=[], help='dropout rate of skip connect')
 parser.add_argument('--add_width', action='append', default=['0'], help='add channels')
@@ -181,11 +181,11 @@ def main():
             if epoch < eps_no_arch:
                 model.p = float(drop_rate[sp]) * (epochs - epoch - 1) / epochs
                 model.update_p()
-                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
+                train_acc, train_obj = train_adv(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
             else:
                 model.p = float(drop_rate[sp]) * np.exp(-(epoch - eps_no_arch) * scale_factor) 
                 model.update_p()                
-                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True)
+                train_acc, train_obj = train_adv(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True)
             logging.info('Train_acc %f', train_acc)
             epoch_duration = time.time() - epoch_start
             logging.info('Epoch time: %ds', epoch_duration)
@@ -335,6 +335,78 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
 
     return top1.avg, objs.avg
 
+# add cifar10 constant
+cifar10_mean = (0.4914, 0.4822, 0.4465)
+cifar10_std = (0.2471, 0.2435, 0.2616)
+CIFAR_CLASSES = 10
+std = torch.FloatTensor(cifar10_std).view(3,1,1)
+mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
+std = torch.FloatTensor(cifar10_std).view(3,1,1)
+upper_limit = ((1 - mu)/ std)
+lower_limit = ((0 - mu)/ std)
+
+def clamp(X, lower_limit, upper_limit):
+    return torch.max(torch.min(X, upper_limit), lower_limit)
+
+def train_adv(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True):
+    objs = utils.AvgrageMeter()
+    top1 = utils.AvgrageMeter()
+    top5 = utils.AvgrageMeter()
+    
+    for step, (input, target) in enumerate(train_queue):
+        model.train()
+        n = input.size(0)
+        input = input.cuda()
+        target = target.cuda(non_blocking=True)
+        if train_arch:
+            # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
+            # the training when using PyTorch 0.4 and above. 
+            try:
+                input_search, target_search = next(valid_queue_iter)
+            except:
+                valid_queue_iter = iter(valid_queue)
+                input_search, target_search = next(valid_queue_iter)
+            input_search = input_search.cuda()
+            target_search = target_search.cuda(non_blocking=True)
+            optimizer_a.zero_grad()
+            logits = model(input_search)
+            loss_a = criterion(logits, target_search)
+            loss_a.backward()
+            nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
+            optimizer_a.step()
+
+        #adv
+        input.requires_grad = True
+        # print(input.requires_grad)
+        epsilon = (8 / 255.) / std
+        epsilon = epsilon.cuda()
+        alpha = (10 / 255.) / std
+        alpha = alpha.cuda()
+
+        optimizer.zero_grad()
+        logits = model(input)
+        loss = criterion(logits, target)
+
+        loss.backward(retain_graph=True)
+        grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach()
+        delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
+        delta = clamp(delta, lower_limit.cuda() - input, upper_limit.cuda() - input)
+        adv_input = (input + delta).cuda()
+        adv_logits = model(adv_input)
+        loss = 0.5 * criterion(logits, target) + 0.5 * criterion(adv_logits, target)
+
+        nn.utils.clip_grad_norm_(network_params, args.grad_clip)
+        optimizer.step()
+
+        prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+        objs.update(loss.data.item(), n)
+        top1.update(prec1.data.item(), n)
+        top5.update(prec5.data.item(), n)
+
+        if step % args.report_freq == 0:
+            logging.info('TRAIN Step: %03d Objs: %e R1: %f R5: %f', step, objs.avg, top1.avg, top5.avg)
+
+    return top1.avg, objs.avg
 
 def infer(valid_queue, model, criterion):
     objs = utils.AvgrageMeter()
