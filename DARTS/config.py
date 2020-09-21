@@ -41,9 +41,9 @@ class BaseConfig(argparse.Namespace):
 class SearchConfig(BaseConfig):
     def build_parser(self):
         parser = get_parser("Search config")
-        parser.add_argument('--name', required=True)
-        parser.add_argument('--dataset', required=True, help='CIFAR10 / CIFAR100 / Sport8 / MIT67')
-        parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+        parser.add_argument('--name', default='test_adv', required=True)
+        parser.add_argument('--dataset', default='CIFAR10', required=True, help='CIFAR10 / CIFAR100 / Sport8 / MIT67')
+        parser.add_argument('--batch_size', type=int, default=16, help='batch size')
         parser.add_argument('--w_lr', type=float, default=0.025, help='lr for weights')
         parser.add_argument('--w_lr_min', type=float, default=0.001, help='minimum lr for weights')
         parser.add_argument('--w_momentum', type=float, default=0.9, help='momentum for weights')
@@ -52,7 +52,7 @@ class SearchConfig(BaseConfig):
         parser.add_argument('--w_grad_clip', type=float, default=5.,
                             help='gradient clipping for weights')
         parser.add_argument('--print_freq', type=int, default=50, help='print frequency')
-        parser.add_argument('--gpus', default='0', help='gpu device ids separated by comma. '
+        parser.add_argument('--gpus', default='1', help='gpu device ids separated by comma. '
                             '`all` indicates use all gpus.')
         parser.add_argument('--epochs', type=int, default=50, help='# of training epochs')
         parser.add_argument('--init_channels', type=int, default=16)
@@ -62,9 +62,9 @@ class SearchConfig(BaseConfig):
         parser.add_argument('--alpha_lr', type=float, default=3e-4, help='lr for alpha')
         parser.add_argument('--alpha_weight_decay', type=float, default=1e-3,
                             help='weight decay for alpha')
-        parser.add_argument('--data_path', default="./data", help="Where to look for the data")
+        parser.add_argument('--data_path', default="/home/yuezx/dataset.yzx/", help="Where to look for the data")
         parser.add_argument('--layers_augment', type=int, default=20, help="nb of layers for augment")
-        parser.add_argument('--path', type=str, default='/cache/darts/searchs')
+        parser.add_argument('--path', type=str, default='./')
 
         return parser
 

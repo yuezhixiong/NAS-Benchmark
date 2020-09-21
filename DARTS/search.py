@@ -82,7 +82,7 @@ def main():
         model.print_alphas(logger)
 
         # training
-        train(train_loader, valid_loader, model, architect, w_optim, alpha_optim, lr, epoch)
+        train_adv(train_loader, valid_loader, model, architect, w_optim, alpha_optim, lr, epoch)
 
         # validation
         cur_step = (epoch+1) * len(train_loader)
@@ -186,6 +186,81 @@ def train(train_loader, valid_loader, model, architect, w_optim, alpha_optim, lr
 
     logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
 
+# add cifar10 constant
+cifar10_mean = (0.4914, 0.4822, 0.4465)
+cifar10_std = (0.2471, 0.2435, 0.2616)
+CIFAR_CLASSES = 10
+std = torch.FloatTensor(cifar10_std).view(3,1,1)
+mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
+std = torch.FloatTensor(cifar10_std).view(3,1,1)
+upper_limit = ((1 - mu)/ std)
+lower_limit = ((0 - mu)/ std)
+
+def clamp(X, lower_limit, upper_limit):
+    return torch.max(torch.min(X, upper_limit), lower_limit)
+
+def train_adv(train_loader, valid_loader, model, architect, w_optim, alpha_optim, lr, epoch):
+    top1 = utils.AverageMeter()
+    top5 = utils.AverageMeter()
+    losses = utils.AverageMeter()
+
+    cur_step = epoch*len(train_loader)
+    writer.add_scalar('train/lr', lr, cur_step)
+
+    model.train()
+
+    for step, ((trn_X, trn_y), (val_X, val_y)) in enumerate(zip(train_loader, valid_loader)):
+        trn_X, trn_y = trn_X.to(device, non_blocking=True), trn_y.to(device, non_blocking=True)
+        val_X, val_y = val_X.to(device, non_blocking=True), val_y.to(device, non_blocking=True)
+        N = trn_X.size(0)
+
+        # phase 2. architect step (alpha)
+        alpha_optim.zero_grad()
+        architect.unrolled_backward(trn_X, trn_y, val_X, val_y, lr, w_optim)
+        alpha_optim.step()
+
+        #adv
+        trn_X.requires_grad = True
+        epsilon = (8 / 255.) / std
+        epsilon = epsilon.cuda()
+        alpha = (10 / 255.) / std
+        alpha = alpha.cuda()
+
+        # phase 1. child network step (w)
+        w_optim.zero_grad()
+        logits = model(trn_X)
+        loss = model.criterion(logits, trn_y)
+
+        loss.backward(retain_graph=True)
+        grad = torch.autograd.grad(loss, trn_X, retain_graph=False, create_graph=False)[0].detach()
+        delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
+        delta = clamp(delta, lower_limit.cuda() - trn_X, upper_limit.cuda() - trn_X)
+        adv_input = (trn_X + delta).cuda()
+        adv_logits = model(adv_input)
+        loss = 0.5 * model.criterion(logits, trn_y) + 0.5 * model.criterion(adv_logits, trn_y)
+
+        # gradient clipping
+        nn.utils.clip_grad_norm_(model.weights(), config.w_grad_clip)
+        w_optim.step()
+
+        prec1, prec5 = utils.accuracy(logits, trn_y, topk=(1, 5))
+        losses.update(loss.item(), N)
+        top1.update(prec1.item(), N)
+        top5.update(prec5.item(), N)
+
+        if step % config.print_freq == 0 or step == len(train_loader)-1:
+            logger.info(
+                "Train: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
+                "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
+                    epoch+1, config.epochs, step, len(train_loader)-1, losses=losses,
+                    top1=top1, top5=top5))
+
+        writer.add_scalar('train/loss', loss.item(), cur_step)
+        writer.add_scalar('train/top1', prec1.item(), cur_step)
+        writer.add_scalar('train/top5', prec5.item(), cur_step)
+        cur_step += 1
+
+    logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, config.epochs, top1.avg))
 
 def validate(valid_loader, model, epoch, cur_step):
     top1 = utils.AverageMeter()
