@@ -186,7 +186,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
     target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
     if epoch>=15:
-      architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+      architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
 
     optimizer.zero_grad()
     logits = model(input)
