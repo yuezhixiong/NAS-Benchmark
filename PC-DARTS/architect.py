@@ -2,6 +2,9 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
+import sys
+sys.path.append('../')
+from min_norm_solvers import MinNormSolver, gradient_normalizers
 
 
 def _concat(xs):
@@ -28,10 +31,10 @@ class Architect(object):
     unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment+dtheta))
     return unrolled_model
 
-  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled):
+  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, C):
     self.optimizer.zero_grad()
     if unrolled:
-        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
+        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C)
     else:
         self._backward_step(input_valid, target_valid)
     self.optimizer.step()
@@ -39,12 +42,54 @@ class Architect(object):
   def _backward_step(self, input_valid, target_valid):
     loss = self.model._loss(input_valid, target_valid)
     loss.backward()
+    
+  def param_number(self, unrolled_model, C):
+    def compute_u(C, is_reduction):
+      a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
+      u = torch.from_numpy(np.repeat(a, 14, axis=1))
+      if is_reduction:
+        u[3, :] = u[3, :] + torch.Tensor([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
+      return u
+    loss = 0
+    # u = torch.from_numpy(np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]))
+    C_list = [C, C, 2*C, 2*C, 2*C, 4*C, 4*C, 4*C]
+    for i in range(self.unrolled_model._layers):
+      if self.unrolled_model.cells[i].reduction:
+        alpha = F.softmax(self.unrolled_model.arch_parameters()[1], dim=-1)
+        u = compute_u(C_list[i], is_reduction=True)
+      else:
+        alpha = F.softmax(self.unrolled_model.arch_parameters()[0], dim=-1)
+        u = compute_u(C_list[i], is_reduction=False)
+      loss += (2 * torch.mm(alpha.t(), u).sum(dim=1) / torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).sum()
+    return loss
 
-  def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
+  def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, C):
+    self.optimizer.zero_grad()
     unrolled_model = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
 
     unrolled_loss.backward()
+    # ---- MGDA -----
+    grads = {}
+    grads['darts'] = []
+    for param in unrolled_model.arch_parameters():
+      if param.grad is not None:
+          grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
+
+    # ---- param loss ----
+    self.optimizer.zero_grad()
+    param_loss = param_number(unrolled_model, C)
+    param_loss.backward()
+    grads['param'] = []
+    for param in unrolled_model.arch_parameters():
+      if param.grad is not None:
+          grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
+
+    sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+    loss = sol[0] * unrolled_loss + sol[1] * param_loss
+    self.optimizer.zero_grad()
+    loss.backward()
+    # ---- MGDA -----
     dalpha = [v.grad for v in unrolled_model.arch_parameters()]
     vector = [v.grad.data for v in unrolled_model.parameters()]
     implicit_grads = self._hessian_vector_product(vector, input_train, target_train)
