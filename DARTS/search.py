@@ -7,7 +7,7 @@ from tensorboardX import SummaryWriter
 from config import SearchConfig
 import utils
 from models.search_cnn import SearchCNNController
-from architect import Architect
+from architect_lbj import Architect
 from visualize import plot
 import random
 
