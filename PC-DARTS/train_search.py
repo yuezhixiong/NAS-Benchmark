@@ -19,15 +19,15 @@ from architect import Architect
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--datapath', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--datapath', type=str, default='/home/yuezx/dataset.yzx/', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='CIFAR10',choices=["CIFAR10", "CIFAR100", "Sport8", "MIT67", "flowers102"])
-parser.add_argument('--batch_size', type=int, default=256, help='batch size')
+parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
+parser.add_argument('--gpu', type=int, default=2, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8, help='total number of layers')
@@ -151,7 +151,7 @@ def main():
     #print(F.softmax(model.alphas_reduce, dim=-1))
 
     # training
-    train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,epoch)
+    train_acc, train_obj = train_adv(train_queue, valid_queue, model, architect, criterion, optimizer, lr,epoch)
     logging.info('train_acc %f', train_acc)
 
     # validation
@@ -164,7 +164,62 @@ def main():
     utils.save(model, os.path.join(args.save, 'weights.pt'))
 
 
-def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,epoch):
+# def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,epoch):
+#   objs = utils.AvgrageMeter()
+#   top1 = utils.AvgrageMeter()
+#   top5 = utils.AvgrageMeter()
+
+#   for step, (input, target) in enumerate(train_queue):
+#     model.train()
+#     n = input.size(0)
+#     input = Variable(input, requires_grad=False).cuda()
+#     target = Variable(target, requires_grad=False).cuda(async=True)
+
+#     # get a random minibatch from the search queue with replacement
+#     input_search, target_search = next(iter(valid_queue))
+#     #try:
+#     #  input_search, target_search = next(valid_queue_iter)
+#     #except:
+#     #  valid_queue_iter = iter(valid_queue)
+#     #  input_search, target_search = next(valid_queue_iter)
+#     input_search = Variable(input_search, requires_grad=False).cuda()
+#     target_search = Variable(target_search, requires_grad=False).cuda(async=True)
+
+#     if epoch>=15:
+#       architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+
+#     optimizer.zero_grad()
+#     logits = model(input)
+#     loss = criterion(logits, target)
+
+#     loss.backward()
+#     nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+#     optimizer.step()
+
+#     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+#     objs.update(loss.data.item(), n)
+#     top1.update(prec1.data.item(), n)
+#     top5.update(prec5.data.item(), n)
+
+#     if step % args.report_freq == 0:
+#       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+
+#   return top1.avg, objs.avg
+
+# add cifar10 constant
+cifar10_mean = (0.4914, 0.4822, 0.4465)
+cifar10_std = (0.2471, 0.2435, 0.2616)
+CIFAR_CLASSES = 10
+std = torch.FloatTensor(cifar10_std).view(3,1,1)
+mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
+std = torch.FloatTensor(cifar10_std).view(3,1,1)
+upper_limit = ((1 - mu)/ std)
+lower_limit = ((0 - mu)/ std)
+
+def clamp(X, lower_limit, upper_limit):
+    return torch.max(torch.min(X, upper_limit), lower_limit)
+
+def train_adv(train_queue, valid_queue, model, architect, criterion, optimizer, lr,epoch):
   objs = utils.AvgrageMeter()
   top1 = utils.AvgrageMeter()
   top5 = utils.AvgrageMeter()
@@ -172,8 +227,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
   for step, (input, target) in enumerate(train_queue):
     model.train()
     n = input.size(0)
-    input = Variable(input, requires_grad=False).cuda()
-    target = Variable(target, requires_grad=False).cuda(async=True)
+    input1 = Variable(input, requires_grad=False).cuda()
+    target = Variable(target, requires_grad=False).cuda()
 
     # get a random minibatch from the search queue with replacement
     input_search, target_search = next(iter(valid_queue))
@@ -183,15 +238,32 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
     #  valid_queue_iter = iter(valid_queue)
     #  input_search, target_search = next(valid_queue_iter)
     input_search = Variable(input_search, requires_grad=False).cuda()
-    target_search = Variable(target_search, requires_grad=False).cuda(async=True)
+    target_search = Variable(target_search, requires_grad=False).cuda()
 
     if epoch>=15:
-      architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+      architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+
+    input = Variable(input, requires_grad=True).cuda()
+    epsilon = (8 / 255.) / std
+    epsilon = epsilon.cuda()
+    alpha = (10 / 255.) / std
+    alpha = alpha.cuda()
 
     optimizer.zero_grad()
     logits = model(input)
     loss = criterion(logits, target)
 
+    loss.backward(retain_graph=True)
+    grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0]
+    grad = grad.detach().data
+
+    delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
+    delta = clamp(delta, lower_limit.cuda() - input.data, upper_limit.cuda() - input.data)
+    adv_input = Variable(input.data + delta, requires_grad=False).cuda()
+    output = model(adv_input)
+    
+    logits = model(input)
+    loss = 0.5 * criterion(logits, target) + 0.5 * criterion(output, target)
     loss.backward()
     nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
     optimizer.step()
@@ -205,7 +277,6 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
   return top1.avg, objs.avg
-
 
 def infer(valid_queue, model, criterion):
   objs = utils.AvgrageMeter()
