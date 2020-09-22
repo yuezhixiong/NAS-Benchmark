@@ -19,7 +19,7 @@ from architect import Architect
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--datapath', type=str, default='/home/yuezx/dataset.yzx/', help='location of the data corpus')
+parser.add_argument('--datapath', type=str, default='../data', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='CIFAR10',choices=["CIFAR10", "CIFAR100", "Sport8", "MIT67", "flowers102"])
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
@@ -35,7 +35,7 @@ parser.add_argument('--model_path', type=str, default='saved_models', help='path
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='EXP', help='experiment name')
+parser.add_argument('--save', type=str, default='adv_nop', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')

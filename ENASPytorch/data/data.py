@@ -6,7 +6,7 @@ import torchvision.datasets as dset
 import random
 
 def get_loaders(args):
-    if args.dataset == "cifar10":
+    if args.dataset == "CIFAR10":
         MEAN = [0.4914, 0.4822, 0.4465]
         STD = [0.2023, 0.1994, 0.2010]
         train_transform = transforms.Compose([

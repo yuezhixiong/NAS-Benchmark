@@ -29,14 +29,14 @@ parser.add_argument('--learning_rate_min', type=float, default=0.0, help='min le
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--gpu', type=int, default=0, help='GPU device id')
+parser.add_argument('--gpu', type=int, default=3, help='GPU device id')
 parser.add_argument('--epochs', type=int, default=25, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=5, help='total number of layers')
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='test_adv', help='experiment path')
+parser.add_argument('--save', type=str, default='adv_nop', help='experiment path')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
@@ -340,8 +340,8 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
             optimizer_a.step()
 
             # ---- MGDA ----
-            nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
-            optimizer_a.step()
+            # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
+            # optimizer_a.step()
 
         optimizer.zero_grad()
         logits = model(input)
@@ -398,8 +398,30 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
             logits = model(input_search)
             loss_a = criterion(logits, target_search)
             loss_a.backward()
-            nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
+
+            # ---- MGDA ----
+            grads = {}
+            # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
+            for param in model.arch_parameters():
+                if param.grad is not None:
+                    grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
+
+            optimizer_a.zero_grad()
+            param_loss = model.param_number()
+            param_loss.backward()
+            for param in model.arch_parameters():
+                if param.grad is not None:
+                    grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
+
+            optimizer_a.zero_grad()
+            sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+            # loss_a = criterion(logits, target_search)
+            # param_loss = model.param_number()
+            loss = sol[0] * loss_a + sol[1] * param_loss
+            loss.backward()
             optimizer_a.step()
+
+            # ---- MGDA ----
 
         #adv
         input.requires_grad = True
