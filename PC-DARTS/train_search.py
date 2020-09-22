@@ -241,7 +241,7 @@ def train_adv(train_queue, valid_queue, model, architect, criterion, optimizer, 
     target_search = Variable(target_search, requires_grad=False).cuda()
 
     if epoch>=15:
-      architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+      architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
 
     input = Variable(input, requires_grad=True).cuda()
     epsilon = (8 / 255.) / std
