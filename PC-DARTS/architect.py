@@ -2,10 +2,8 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
-import sys
-sys.path.append('../')
 from min_norm_solvers import MinNormSolver, gradient_normalizers
-
+import torch.nn.functional as F
 
 def _concat(xs):
   return torch.cat([x.view(-1) for x in xs])
@@ -42,40 +40,38 @@ class Architect(object):
   def _backward_step(self, input_valid, target_valid):
     loss = self.model._loss(input_valid, target_valid)
     loss.backward()
-    
+
   def param_number(self, unrolled_model, C):
     def compute_u(C, is_reduction):
       a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
-      u = torch.from_numpy(np.repeat(a, 14, axis=1))
+#       u = torch.from_numpy(np.repeat(a, 14, axis=1))
+      u = np.repeat(a, 14, axis=1)
       if is_reduction:
-        u[3, :] = u[3, :] + torch.Tensor([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
-      return u
+        u[3, :] = u[3, :] + np.array([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
+      return Variable(torch.from_numpy(u)).float().cuda()
     loss = 0
     # u = torch.from_numpy(np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]))
     C_list = [C, C, 2*C, 2*C, 2*C, 4*C, 4*C, 4*C]
-    for i in range(self.unrolled_model._layers):
-      if self.unrolled_model.cells[i].reduction:
-        alpha = F.softmax(self.unrolled_model.arch_parameters()[1], dim=-1)
+    for i in range(unrolled_model._layers):
+      if unrolled_model.cells[i].reduction:
+        alpha = F.softmax(unrolled_model.arch_parameters()[1], dim=-1)
         u = compute_u(C_list[i], is_reduction=True)
       else:
-        alpha = F.softmax(self.unrolled_model.arch_parameters()[0], dim=-1)
+        alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
         u = compute_u(C_list[i], is_reduction=False)
-      loss += (2 * torch.mm(alpha.t(), u).sum(dim=1) / torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).sum()
+      loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
     return loss
 
   def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, C):
     self.optimizer.zero_grad()
+    grads = {}
+    loss_data = {}
     unrolled_model = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
-    
-    if entropy:
-      entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
-    (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
-      unrolled_loss = unrolled_loss + 0.1 * entropy_loss
-
+    loss_data['darts'] = unrolled_loss.data[0]
     unrolled_loss.backward()
+
     # ---- MGDA -----
-    grads = {}
     grads['darts'] = []
     for param in unrolled_model.arch_parameters():
       if param.grad is not None:
@@ -83,18 +79,29 @@ class Architect(object):
 
     # ---- param loss ----
     self.optimizer.zero_grad()
-    param_loss = param_number(unrolled_model, C)
+    param_loss = self.param_number(unrolled_model, C)
+    loss_data['param'] = param_loss.data[0]
     param_loss.backward()
     grads['param'] = []
     for param in unrolled_model.arch_parameters():
       if param.grad is not None:
           grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
+            
+    gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
+    for t in ['darts', 'param']:
+      for gr_i in range(len(grads[t])):
+        grads[t][gr_i] = grads[t][gr_i] / gn[t]
 
+#     print('+'*5, grads)
     sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
-    loss = sol[0] * unrolled_loss + sol[1] * param_loss
+    unrolled_loss = unrolled_model._loss(input_valid, target_valid)
+    param_loss = self.param_number(unrolled_model, C)
+    print('-'*5, sol)
+    loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
     self.optimizer.zero_grad()
     loss.backward()
     # ---- MGDA -----
+
     dalpha = [v.grad for v in unrolled_model.arch_parameters()]
     vector = [v.grad.data for v in unrolled_model.parameters()]
     implicit_grads = self._hessian_vector_product(vector, input_train, target_train)
