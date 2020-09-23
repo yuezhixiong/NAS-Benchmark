@@ -187,9 +187,11 @@ class Network(nn.Module):
     def param_number(self):
         def compute_u(C, is_reduction):
             a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
-            u = torch.from_numpy(np.repeat(a, 14, axis=1))
+#             u = torch.from_numpy(np.repeat(a, 14, axis=1))
+            u = np.repeat(a, 14, axis=1)
             if is_reduction:
-                u[3, :] = u[3, :] + torch.Tensor([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
+                u[3, :] = u[3, :] + np.array([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
+            u = torch.from_numpy(u).float().cuda()
             return u
         loss = 0
         C = self._C
@@ -202,7 +204,8 @@ class Network(nn.Module):
             else:
                 alpha = F.softmax(self.arch_parameters()[0], dim=-1)
                 u = compute_u(C_list[i], is_reduction=False)
-            loss += (2 * torch.mm(alpha.t(), u).sum(dim=1) / torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).sum()
+#             print('-'*5, alpha.size(), u.size())
+            loss += (2 * torch.mm(alpha, u).sum(dim=1) / (torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
         return loss
 
 
