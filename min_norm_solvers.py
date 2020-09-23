@@ -36,24 +36,21 @@ class MinNormSolver:
         ie. min_c |\sum c_i x_i|_2^2 st. \sum c_i = 1 , 1 >= c_1 >= 0 for all i, c_i + c_j = 1.0 for some i, j
         """
         dmin = 1e8
-        for i in range(len(vecs)):
+        for i in range(len(vecs)): # task loop
             for j in range(i+1,len(vecs)):
                 if (i,j) not in dps:
                     dps[(i, j)] = 0.0
                     for k in range(len(vecs[i])):
-                        dps[(i,j)] += (vecs[i][k]*vecs[j][k]).sum()
-#                         dps[(i,j)] += torch.dot(vecs[i][k], vecs[j][k]).item()
+                        dps[(i,j)] += torch.dot(vecs[i][k], vecs[j][k]).data[0]
                     dps[(j, i)] = dps[(i, j)]
                 if (i,i) not in dps:
                     dps[(i, i)] = 0.0
                     for k in range(len(vecs[i])):
-                        dps[(i,i)] += (vecs[i][k]*vecs[i][k]).sum()
-#                         dps[(i,i)] += torch.dot(vecs[i][k], vecs[i][k]).item()
+                        dps[(i,i)] += torch.dot(vecs[i][k], vecs[i][k]).data[0]
                 if (j,j) not in dps:
                     dps[(j, j)] = 0.0   
                     for k in range(len(vecs[i])):
-                        dps[(j,j)] += (vecs[j][k]*vecs[j][k]).sum()
-#                         dps[(j, j)] += torch.dot(vecs[j][k], vecs[j][k]).item()
+                        dps[(j, j)] += torch.dot(vecs[j][k], vecs[j][k]).data[0]
                 c,d = MinNormSolver._min_norm_element_from2(dps[(i,i)], dps[(i,j)], dps[(j,j)])
                 if d < dmin:
                     dmin = d
@@ -133,13 +130,6 @@ class MinNormSolver:
                     v1v2 += sol_vec[i]*new_point[j]*dps[(i,j)]
                     v2v2 += new_point[i]*new_point[j]*dps[(i,j)]
             nc, nd = MinNormSolver._min_norm_element_from2(v1v1, v1v2, v2v2)
-            #
-#             sol_vec = torch.from_numpy(sol_vec)
-#             new_point = torch.from_numpy(new_point)
-#             print('-'*10, type(nc))
-            if torch.is_tensor(nc):
-                nc = nc.cpu().numpy()
-            #
             new_sol_vec = nc*sol_vec + (1-nc)*new_point
             change = new_sol_vec - sol_vec
             if np.sum(np.abs(change)) < MinNormSolver.STOP_CRIT:
@@ -194,13 +184,13 @@ def gradient_normalizers(grads, losses, normalization_type):
     gn = {}
     if normalization_type == 'l2':
         for t in grads:
-            gn[t] = np.sqrt(np.sum([gr.pow(2).sum().item() for gr in grads[t]]))
+            gn[t] = np.sqrt(np.sum([gr.pow(2).sum().data[0] for gr in grads[t]]))
     elif normalization_type == 'loss':
         for t in grads:
             gn[t] = losses[t]
     elif normalization_type == 'loss+':
         for t in grads:
-            gn[t] = losses[t] * np.sqrt(np.sum([gr.pow(2).sum().item() for gr in grads[t]]))
+            gn[t] = losses[t] * np.sqrt(np.sum([gr.pow(2).sum().data[0] for gr in grads[t]]))
     elif normalization_type == 'none':
         for t in grads:
             gn[t] = 1.0
