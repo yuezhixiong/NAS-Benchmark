@@ -214,13 +214,13 @@ def infer(valid_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
-    input = input.cuda()
-    target = target.cuda(non_blocking=True)
-    #input = Variable(input).cuda()
-    #target = Variable(target).cuda(async=True)
-    with torch.no_grad():
-      logits = model(input)
-      loss = criterion(logits, target)
+#     input = input.cuda()
+#     target = target.cuda(non_blocking=True)
+    input = Variable(input).cuda()
+    target = Variable(target).cuda(async=True)
+#     with torch.no_grad():
+  logits = model(input)
+  loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
