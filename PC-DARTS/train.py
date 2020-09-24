@@ -18,15 +18,15 @@ from model import NetworkCIFAR as Network, NetworkImageNet as NetworkLarge
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--datapath', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--datapath', type=str, default='../darts_linbj/data', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='CIFAR10',choices=["CIFAR10", "CIFAR100", "Sport8", "MIT67", "flowers102"])
-parser.add_argument('--batch_size', type=int, default=96, help='batch size')
+parser.add_argument('--batch_size', type=int, default=32, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
-parser.add_argument('--epochs', type=int, default=600, help='num of training epochs')
+parser.add_argument('--epochs', type=int, default=1, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
@@ -79,8 +79,16 @@ def main():
   torch.cuda.manual_seed(args.seed)
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
+    
+  f = open(os.path.join(args.save, 'best_genotype.txt'))
+  f_list = f.readlines()
+  f.close()
+  f = open('./genotypes.py', 'a')
+  f.write(args.arch+' = '+f_list[0]+'\n')
+  f.close()
 
   genotype = eval("genotypes.%s" % args.arch)
+    
   if args.dataset in utils.LARGE_DATASETS:
     model = NetworkLarge(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
   else:
@@ -165,14 +173,14 @@ def train(train_queue, model, criterion, optimizer):
       loss_aux = criterion(logits_aux, target)
       loss += args.auxiliary_weight*loss_aux
     loss.backward()
-    nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+    nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
     optimizer.step()
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
-    objs.update(loss.data.item(), n)
-    top1.update(prec1.data.item(), n)
-    top5.update(prec5.data.item(), n)
+    objs.update(loss.data[0], n)
+    top1.update(prec1.data[0], n)
+    top5.update(prec5.data[0], n)
 
     if step % args.report_freq == 0:
       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
@@ -187,19 +195,19 @@ def infer(valid_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
-    input = input.cuda(non_blocking=True)
-    target = target.cuda(non_blocking=True)
-    #input = Variable(input).cuda()
-    #target = Variable(target).cuda(async=True)
-    with torch.no_grad():
-      logits, _ = model(input)
-      loss = criterion(logits, target)
+#     input = input.cuda(non_blocking=True)
+#     target = target.cuda(non_blocking=True)
+    input = Variable(input).cuda()
+    target = Variable(target).cuda(async=True)
+#     with torch.no_grad():
+    logits, _ = model(input)
+    loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
-    objs.update(loss.data.item(), n)
-    top1.update(prec1.data.item(), n)
-    top5.update(prec5.data.item(), n)
+    objs.update(loss.data[0], n)
+    top1.update(prec1.data[0], n)
+    top5.update(prec5.data[0], n)
 
     if step % args.report_freq == 0:
       logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
@@ -209,4 +217,3 @@ def infer(valid_queue, model, criterion):
 
 if __name__ == '__main__':
   main() 
-
