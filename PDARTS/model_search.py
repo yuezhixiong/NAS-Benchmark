@@ -193,7 +193,7 @@ class Network(nn.Module):
                 u[3, :] = u[3, :] + np.array([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
             if (np.array(switches_normal[0])==0).sum() != 0:
                 index = np.argwhere(np.array(switches_normal[0])==0)[0]
-                u = np.delete(u, index, axis=1)
+                u = np.delete(u, index, axis=0)
             u = Variable(torch.from_numpy(u)).float().cuda()
             return u
         loss = 0
