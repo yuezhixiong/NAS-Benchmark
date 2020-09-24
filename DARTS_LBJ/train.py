@@ -66,6 +66,17 @@ def main():
   torch.cuda.manual_seed(args.seed)
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
+    
+  f = open(os.path.join(args.save, 'log.txt'))
+  f_list = f.readlines()
+  f.close()
+  for i in range(len(f_list)-1, 0, -1):
+    if f_list[i][24:32] == 'genotype':
+      genotype = f_list[i][35:-1]
+      break
+  f = open('./genotypes.py', 'a')
+  f.write(args.arch+' = '+genotype+'\n')
+  f.close()
 
   genotype = eval("genotypes.%s" % args.arch)
   model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
