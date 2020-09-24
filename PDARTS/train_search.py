@@ -12,6 +12,7 @@ import torch.utils
 import torch.nn.functional as F
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
+from torch.autograd import Variable
 import copy
 from model_search import Network
 from genotypes import PRIMITIVES
@@ -292,75 +293,6 @@ def main():
         f.write(str(genotype))
               
 
-def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True):
-    objs = utils.AvgrageMeter()
-    top1 = utils.AvgrageMeter()
-    top5 = utils.AvgrageMeter()
-    
-    for step, (input, target) in enumerate(train_queue):
-        model.train()
-        n = input.size(0)
-        input = input.cuda()
-        target = target.cuda(non_blocking=True)
-        if train_arch:
-            # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
-            # the training when using PyTorch 0.4 and above. 
-            try:
-                input_search, target_search = next(valid_queue_iter)
-            except:
-                valid_queue_iter = iter(valid_queue)
-                input_search, target_search = next(valid_queue_iter)
-            input_search = input_search.cuda()
-            target_search = target_search.cuda(non_blocking=True)
-            optimizer_a.zero_grad()
-            logits = model(input_search)
-            loss_a = criterion(logits, target_search)
-            loss_a.backward()
-            # ---- MGDA ----
-            
-            grads = {}
-            # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
-            for param in model.arch_parameters():
-                if param.grad is not None:
-                    grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
-
-            optimizer_a.zero_grad()
-            param_loss = model.param_number()
-            param_loss.backward()
-            for param in model.arch_parameters():
-                if param.grad is not None:
-                    grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
-
-            optimizer_a.zero_grad()
-            sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
-            # loss_a = criterion(logits, target_search)
-            # param_loss = model.param_number()
-            loss = sol[0] * loss_a + sol[1] * param_loss
-            loss.backward()
-            optimizer_a.step()
-
-            # ---- MGDA ----
-            # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
-            # optimizer_a.step()
-
-        optimizer.zero_grad()
-        logits = model(input)
-        loss = criterion(logits, target)
-
-        loss.backward()
-        nn.utils.clip_grad_norm_(network_params, args.grad_clip)
-        optimizer.step()
-
-        prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-        objs.update(loss.data.item(), n)
-        top1.update(prec1.data.item(), n)
-        top5.update(prec5.data.item(), n)
-
-        if step % args.report_freq == 0:
-            logging.info('TRAIN Step: %03d Objs: %e R1: %f R5: %f', step, objs.avg, top1.avg, top5.avg)
-
-    return top1.avg, objs.avg
-
 # add cifar10 constant
 cifar10_mean = (0.4914, 0.4822, 0.4465)
 cifar10_std = (0.2471, 0.2435, 0.2616)
@@ -385,6 +317,7 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
         input = input.cuda()
         target = target.cuda(non_blocking=True)
         if train_arch:
+            # print('for test only')
             # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
             # the training when using PyTorch 0.4 and above. 
             try:
@@ -394,13 +327,17 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
                 input_search, target_search = next(valid_queue_iter)
             input_search = input_search.cuda()
             target_search = target_search.cuda(non_blocking=True)
+            
+            loss_data = {}
             optimizer_a.zero_grad()
             logits = model(input_search)
             loss_a = criterion(logits, target_search)
+            loss_data['darts'] = loss_a.item()
             loss_a.backward()
 
-            # ---- MGDA ----
+# ---- MGDA ----
             grads = {}
+            grads['darts'] = []
             # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
             for param in model.arch_parameters():
                 if param.grad is not None:
@@ -408,15 +345,24 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
 
             optimizer_a.zero_grad()
             param_loss = model.param_number()
+            loss_data['param'] = param_loss.item()
             param_loss.backward()
+            grads['param'] = []
             for param in model.arch_parameters():
                 if param.grad is not None:
                     grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
+                    
+            gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
+            for t in ['darts', 'param']:
+                for gr_i in range(len(grads[t])):
+                    grads[t][gr_i] = grads[t][gr_i] / gn[t]
 
             optimizer_a.zero_grad()
             sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
-            # loss_a = criterion(logits, target_search)
-            # param_loss = model.param_number()
+#             print('-'*8, sol)
+            logits = model(input_search)
+            loss_a = criterion(logits, target_search)
+            param_loss = model.param_number()
             loss = sol[0] * loss_a + sol[1] * param_loss
             loss.backward()
             optimizer_a.step()

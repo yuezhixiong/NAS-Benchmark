@@ -27,7 +27,7 @@ parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min 
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--gpu', type=int, default=2, help='gpu device id')
+parser.add_argument('--gpu', type=int, default=1, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8, help='total number of layers')
@@ -39,7 +39,7 @@ parser.add_argument('--save', type=str, default='adv_nop', help='experiment name
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
-parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
+parser.add_argument('--unrolled', action='store_true', default=True, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 args = parser.parse_args()
@@ -265,13 +265,13 @@ def train_adv(train_queue, valid_queue, model, architect, criterion, optimizer, 
     logits = model(input)
     loss = 0.5 * criterion(logits, target) + 0.5 * criterion(output, target)
     loss.backward()
-    nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+    nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
     optimizer.step()
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-    objs.update(loss.data.item(), n)
-    top1.update(prec1.data.item(), n)
-    top5.update(prec5.data.item(), n)
+    objs.update(loss.data[0], n)
+    top1.update(prec1.data[0], n)
+    top5.update(prec5.data[0], n)
 
     if step % args.report_freq == 0:
       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
@@ -295,9 +295,9 @@ def infer(valid_queue, model, criterion):
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
-    objs.update(loss.data.item(), n)
-    top1.update(prec1.data.item(), n)
-    top5.update(prec5.data.item(), n)
+    objs.update(loss.data[0], n)
+    top1.update(prec1.data[0], n)
+    top5.update(prec5.data[0], n)
 
     if step % args.report_freq == 0:
       logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
