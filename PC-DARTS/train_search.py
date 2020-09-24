@@ -219,8 +219,8 @@ def infer(valid_queue, model, criterion):
     input = Variable(input).cuda()
     target = Variable(target).cuda(async=True)
 #     with torch.no_grad():
-  logits = model(input)
-  loss = criterion(logits, target)
+    logits = model(input)
+    loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
