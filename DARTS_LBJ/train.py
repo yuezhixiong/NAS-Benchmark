@@ -14,19 +14,18 @@ import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 
 from torch.autograd import Variable
-from model import NetworkCIFAR as Network, NetworkImageNet as NetworkLarge
+from model import NetworkCIFAR as Network
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--datapath', type=str, default='../darts_linbj/data', help='location of the data corpus')
-parser.add_argument('--dataset', type=str, default='CIFAR10',choices=["CIFAR10", "CIFAR100", "Sport8", "MIT67", "flowers102"])
+parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
-parser.add_argument('--epochs', type=int, default=1, help='num of training epochs')
+parser.add_argument('--epochs', type=int, default=600, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
@@ -34,38 +33,27 @@ parser.add_argument('--auxiliary', action='store_true', default=False, help='use
 parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight for auxiliary loss')
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
-parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
+parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
 parser.add_argument('--save', type=str, default='EXP', help='experiment name')
+parser.add_argument('--log_save', type=str, default='EXP', help='experiment name')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
-parser.add_argument('--arch', type=str, default='PCDARTS', help='which architecture to use')
+parser.add_argument('--arch', type=str, default='DARTS', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-#args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
-#utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
     format=log_format, datefmt='%m/%d %I:%M:%S %p')
-if not os.path.exists(args.save):
-    os.makedirs(args.save)
 fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
-if args.dataset == "CIFAR100":
-  CLASSES = 100
-elif args.dataset == "CIFAR10":
-  CLASSES = 10
-elif args.dataset == 'MIT67':
-  dset_cls = dset.ImageFolder
-  CLASSES = 67
-elif args.dataset == 'Sport8':
-  dset_cls = dset.ImageFolder
-  CLASSES = 8
-elif args.dataset == "flowers102":
-  dset_cls = dset.ImageFolder
-  CLASSES = 102
+CIFAR_CLASSES = 10
+
+
 def main():
   if not torch.cuda.is_available():
     logging.info('no gpu device available')
@@ -80,19 +68,19 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
     
-  f = open(os.path.join(args.save, 'best_genotype.txt'))
+  f = open(os.path.join(args.log_save, 'log.txt'))
   f_list = f.readlines()
   f.close()
+  for i in range(len(f_list)-1, 0, -1):
+    if f_list[i][24:32] == 'genotype':
+      genotype = f_list[i][35:-1]
+      break
   f = open('./genotypes.py', 'a')
-  f.write(args.arch+' = '+f_list[0]+'\n')
+  f.write(args.arch+' = '+genotype+'\n')
   f.close()
 
   genotype = eval("genotypes.%s" % args.arch)
-    
-  if args.dataset in utils.LARGE_DATASETS:
-    model = NetworkLarge(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
-  else:
-    model = Network(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
+  model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
   model = model.cuda()
 
   logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
@@ -106,31 +94,9 @@ def main():
       weight_decay=args.weight_decay
       )
 
-  train_transform, valid_transform = utils.data_transforms(args.dataset, args.cutout, args.cutout_length)
-  if args.dataset == "CIFAR100":
-    train_data = dset.CIFAR100(root=args.datapath, train=True, download=True, transform=train_transform)
-    valid_data = dset.CIFAR100(root=args.datapath, train=False, download=True, transform=valid_transform)
-  elif args.dataset == "CIFAR10":
-    train_data = dset.CIFAR10(root=args.datapath, train=True, download=True, transform=train_transform)
-    valid_data = dset.CIFAR10(root=args.datapath, train=False, download=True, transform=valid_transform)
-  elif args.dataset == 'MIT67':
-    dset_cls = dset.ImageFolder
-    data_path = '%s/MIT67/train' % args.datapath  # 'data/MIT67/train'
-    val_path = '%s/MIT67/test' % args.datapath  # 'data/MIT67/val'
-    train_data = dset_cls(root=data_path, transform=train_transform)
-    valid_data = dset_cls(root=val_path, transform=valid_transform)
-  elif args.dataset == 'Sport8':
-    dset_cls = dset.ImageFolder
-    data_path = '%s/Sport8/train' % args.datapath  # 'data/Sport8/train'
-    val_path = '%s/Sport8/test' % args.datapath  # 'data/Sport8/val'
-    train_data = dset_cls(root=data_path, transform=train_transform)
-    valid_data = dset_cls(root=val_path, transform=valid_transform)
-  elif args.dataset == "flowers102":
-    dset_cls = dset.ImageFolder
-    data_path = '%s/flowers102/train' % args.datapath
-    val_path = '%s/flowers102/test' % args.datapath
-    train_data = dset_cls(root=data_path, transform=train_transform)
-    valid_data = dset_cls(root=val_path, transform=valid_transform)
+  train_transform, valid_transform = utils._data_transforms_cifar10(args)
+  train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
+  valid_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
 
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=2)
@@ -139,7 +105,7 @@ def main():
       valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=2)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
-  best_acc = 0.0
+
   for epoch in range(args.epochs):
     scheduler.step()
     logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
@@ -149,9 +115,7 @@ def main():
     logging.info('train_acc %f', train_acc)
 
     valid_acc, valid_obj = infer(valid_queue, model, criterion)
-    if valid_acc > best_acc:
-        best_acc = valid_acc
-    logging.info('valid_acc %f, best_acc %f', valid_acc, best_acc)
+    logging.info('valid_acc %f', valid_acc)
 
     utils.save(model, os.path.join(args.save, 'weights.pt'))
 
@@ -195,11 +159,9 @@ def infer(valid_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
-#     input = input.cuda(non_blocking=True)
-#     target = target.cuda(non_blocking=True)
-    input = Variable(input).cuda()
-    target = Variable(target).cuda(async=True)
-#     with torch.no_grad():
+    input = Variable(input, volatile=True).cuda()
+    target = Variable(target, volatile=True).cuda(async=True)
+
     logits, _ = model(input)
     loss = criterion(logits, target)
 
@@ -217,3 +179,4 @@ def infer(valid_queue, model, criterion):
 
 if __name__ == '__main__':
   main() 
+

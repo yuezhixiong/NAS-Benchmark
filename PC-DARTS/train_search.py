@@ -19,7 +19,7 @@ from architect import Architect
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--datapath', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--datapath', type=str, default='../darts_linbj/data', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='CIFAR10',choices=["CIFAR10", "CIFAR100", "Sport8", "MIT67", "flowers102"])
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
@@ -285,13 +285,13 @@ def infer(valid_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
-    input = input.cuda()
-    target = target.cuda(non_blocking=True)
-    #input = Variable(input).cuda()
-    #target = Variable(target).cuda(async=True)
-    with torch.no_grad():
-      logits = model(input)
-      loss = criterion(logits, target)
+#     input = input.cuda()
+#     target = target.cuda(non_blocking=True)
+    input = Variable(input).cuda()
+    target = Variable(target).cuda(async=True)
+#     with torch.no_grad():
+    logits = model(input)
+    loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
@@ -307,4 +307,3 @@ def infer(valid_queue, model, criterion):
 
 if __name__ == '__main__':
   main() 
-

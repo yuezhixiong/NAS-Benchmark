@@ -14,12 +14,14 @@ import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 import copy
-from model_search import Network
+from model_search_lbj import Network
 from genotypes import PRIMITIVES
 from genotypes import Genotype
 import random
 sys.path.append('../')
 from min_norm_solvers import MinNormSolver, gradient_normalizers
+from torch.autograd import Variable
+
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
@@ -43,7 +45,7 @@ parser.add_argument('--grad_clip', type=float, default=5, help='gradient clippin
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--tmp_data_dir', type=str, default='/home/yuezx/dataset.yzx/', help='temp data dir')
+parser.add_argument('--tmp_data_dir', type=str, default='./data', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 parser.add_argument('--dropout_rate', action='append', default=[], help='dropout rate of skip connect')
 parser.add_argument('--add_width', action='append', default=['0'], help='add channels')
@@ -315,9 +317,10 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
         model.train()
         n = input.size(0)
         input = input.cuda()
-        target = target.cuda(non_blocking=True)
+        target = target.cuda()
+#         target = target.cuda(async=True)
         if train_arch:
-            # print('for test only')
+#         if True:
             # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
             # the training when using PyTorch 0.4 and above. 
             try:
@@ -325,9 +328,8 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
             except:
                 valid_queue_iter = iter(valid_queue)
                 input_search, target_search = next(valid_queue_iter)
-            input_search = input_search.cuda()
-            target_search = target_search.cuda(non_blocking=True)
-            
+            input_search = Variable(input_search).cuda()
+            target_search = target_search.cuda()
             loss_data = {}
             optimizer_a.zero_grad()
             logits = model(input_search)
@@ -335,7 +337,7 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
             loss_data['darts'] = loss_a.item()
             loss_a.backward()
 
-# ---- MGDA ----
+            # ---- MGDA ----
             grads = {}
             grads['darts'] = []
             # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
@@ -410,7 +412,8 @@ def infer(valid_queue, model, criterion):
 
     for step, (input, target) in enumerate(valid_queue):
         input = input.cuda()
-        target = target.cuda(non_blocking=True)
+#         target = target.cuda(async=True)
+        target = target.cuda()
         with torch.no_grad():
             logits = model(input)
             loss = criterion(logits, target)

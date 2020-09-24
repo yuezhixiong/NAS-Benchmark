@@ -79,6 +79,7 @@ class Network(nn.Module):
     def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3, switches_normal=[], switches_reduce=[], p=0.0, largemode=False):
         super(Network, self).__init__()
         self._C = C
+        self.C_list = []
         self._num_classes = num_classes
         self._layers = layers
         self._criterion = criterion
@@ -132,6 +133,7 @@ class Network(nn.Module):
                 cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev, switches_normal, self.p)
             reduction_prev = reduction
             self.cells += [cell]
+            self.C_list.append(C_curr)
             C_prev_prev, C_prev = C_prev, multiplier*C_curr
 
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
@@ -185,25 +187,31 @@ class Network(nn.Module):
 
 
     def param_number(self):
-        def compute_u(C, is_reduction):
+#         print('$'*10, self.switches_normal[0])
+        def compute_u(C, is_reduction, switches_normal):
             a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
 #             u = torch.from_numpy(np.repeat(a, 14, axis=1))
             u = np.repeat(a, 14, axis=1)
             if is_reduction:
                 u[3, :] = u[3, :] + np.array([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
+            if (np.array(switches_normal[0])==0).sum() != 0:
+                index = np.argwhere(np.array(switches_normal[0])==0)[:,0]
+                u = np.delete(u, index, axis=0)
             u = Variable(torch.from_numpy(u)).float().cuda()
             return u
         loss = 0
         C = self._C
         # u = torch.from_numpy(np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]))
-        C_list = [C, C, 2*C, 2*C, 2*C, 4*C, 4*C, 4*C]
+#         C_list = [C, C, 2*C, 2*C, 2*C, 4*C, 4*C, 4*C]
+        C_list = self.C_list
+#         print('-'*10, C_list)
         for i in range(self._layers):
             if self.cells[i].reduction:
                 alpha = F.softmax(self.arch_parameters()[1], dim=-1)
-                u = compute_u(C_list[i], is_reduction=True)
+                u = compute_u(C_list[i], is_reduction=True, switches_normal=self.switches_normal)
             else:
                 alpha = F.softmax(self.arch_parameters()[0], dim=-1)
-                u = compute_u(C_list[i], is_reduction=False)
+                u = compute_u(C_list[i], is_reduction=False, switches_normal=self.switches_normal)
 #             print('-'*5, alpha.size(), u.size())
             loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
         return loss
