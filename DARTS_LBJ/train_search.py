@@ -20,8 +20,8 @@ from architect import Architect
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--data', type=str, default='/home/yuezx/dataset.yzx/', help='location of the data corpus')
-parser.add_argument('--batch_size', type=int, default=32, help='batch size')
+parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--batch_size', type=int, default=8, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -35,16 +35,18 @@ parser.add_argument('--model_path', type=str, default='saved_models', help='path
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='EXP', help='experiment name')
+parser.add_argument('--save', type=str, default='adv_nop', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
-parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
+parser.add_argument('--unrolled', action='store_true', default=True, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
+parser.add_argument('--adv', action='store_true', default=True, help='use adv train')
+parser.add_argument('--nop', action='store_true', default=True, help='optimize number of parameter')
 args = parser.parse_args()
 
-args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+# args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -118,7 +120,7 @@ def main():
         print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
-        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr)
+        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args)
         logging.info('train_acc %f', train_acc)
 
         # validation
@@ -127,8 +129,10 @@ def main():
 
         utils.save(model, os.path.join(args.save, 'weights.pt'))
 
+def clamp(X, lower_limit, upper_limit):
+    return torch.max(torch.min(X, upper_limit), lower_limit)
 
-def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
+def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
@@ -137,7 +141,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         model.train()
         n = input.size(0)
 
-        input = Variable(input, requires_grad=False).cuda()
+        input1 = Variable(input, requires_grad=False).cuda()
         target = Variable(target, requires_grad=False).cuda(async=True)
 
         # get a random minibatch from the search queue with replacement
@@ -145,11 +149,41 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
-        architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
-#     architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
-        optimizer.zero_grad()
-        logits = model(input)
-        loss = criterion(logits, target)
+        if args.nop:
+            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
+        else:
+            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+
+        if args.adv:
+            input = Variable(input, requires_grad=True).cuda()
+
+            cifar10_mean = (0.4914, 0.4822, 0.4465)
+            cifar10_std = (0.2471, 0.2435, 0.2616)
+            std = torch.FloatTensor(cifar10_std).view(3,1,1)
+            mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
+            std = torch.FloatTensor(cifar10_std).view(3,1,1)
+            upper_limit = ((1 - mu)/ std).cuda()
+            lower_limit = ((0 - mu)/ std).cuda()
+            epsilon = ((8 / 255.) / std).cuda()
+            alpha = ((10 / 255.) / std).cuda()
+
+            optimizer.zero_grad()
+            logits = model(input)
+            loss = criterion(logits, target)
+            loss.backward(retain_graph=True)
+            grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
+            delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
+            delta = clamp(delta, lower_limit.cuda() - input.data, upper_limit.cuda() - input.data)
+            adv_input = Variable(input.data + delta, requires_grad=False).cuda()
+            logits_adv = model(adv_input)  
+            logits = model(input)
+
+            loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
+            
+        else:
+            optimizer.zero_grad()
+            logits = model(input)
+            loss = criterion(logits, target)
 
         loss.backward()
         nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)

@@ -103,7 +103,7 @@ class Architect(object):
     sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
     param_loss = self.param_number(unrolled_model, C)
-    print('-'*10, sol)
+    # print('-'*10, sol)
     loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
     self.optimizer.zero_grad()
     loss.backward()

@@ -1,4 +1,4 @@
-nohup python -u train_search.py --datapath ../data --dataset CIFAR10 --batch_size 64 --gpu 0 --unrolled --epochs 1 > search.out &
+nohup python -u train_search.py --gpu 2 > search.out &
 
 echo $!
 ps -p $!
@@ -8,7 +8,7 @@ sleep 30s
 ps -p $!
 done
 
-nohup python -u train.py --datapath ../data --dataset CIFAR10 --batch_size 64 --gpu 0 --epochs 1 > train.out &
+nohup python -u train.py --gpu 2 > train.out &
 
 echo $!
 ps -p $!

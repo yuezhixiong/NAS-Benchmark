@@ -14,7 +14,7 @@ import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 import copy
-from model_search_lbj import Network
+from model_search import Network
 from genotypes import PRIMITIVES
 from genotypes import Genotype
 import random
@@ -45,7 +45,7 @@ parser.add_argument('--grad_clip', type=float, default=5, help='gradient clippin
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--tmp_data_dir', type=str, default='./data', help='temp data dir')
+parser.add_argument('--tmp_data_dir', type=str, default='../data', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 parser.add_argument('--dropout_rate', action='append', default=[], help='dropout rate of skip connect')
 parser.add_argument('--add_width', action='append', default=['0'], help='add channels')
@@ -320,7 +320,8 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
         target = target.cuda()
 #         target = target.cuda(async=True)
         if train_arch:
-#         if True:
+        # if True:
+        #     print('warning if True rather than if train_arch')
             # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
             # the training when using PyTorch 0.4 and above. 
             try:

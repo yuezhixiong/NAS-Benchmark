@@ -25,7 +25,7 @@ parser.add_argument('--learning_rate', type=float, default=0.025, help='init lea
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--epochs', type=int, default=1, help='num of training epochs')
+parser.add_argument('--epochs', type=int, default=600, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
 parser.add_argument('--auxiliary', action='store_true', default=True, help='use auxiliary tower')
@@ -33,12 +33,13 @@ parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight 
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='./checkpoints/', help='experiment name')
+parser.add_argument('--save', type=str, default='./adv_nop/', help='experiment name')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='PDARTS', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
-parser.add_argument('--tmp_data_dir', type=str, default='./cache/', help='temp data dir')
+parser.add_argument('--tmp_data_dir', type=str, default='../data', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
+parser.add_argument('--gpu', type=int, default=3, help='GPU device id')
 
 args, unparsed = parser.parse_known_args()
 
@@ -82,13 +83,14 @@ def main():
         logging.info('No GPU device available')
         sys.exit(1)
     np.random.seed(args.seed)
+    torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
     cudnn.enabled=True
     torch.cuda.manual_seed(args.seed)
     logging.info("args = %s", args)
     logging.info("unparsed args = %s", unparsed)
-    num_gpus = torch.cuda.device_count()
+    # num_gpus = torch.cuda.device_count()
     
     f = open(os.path.join(args.save, 'best_genotype.txt'))
     f_list = f.readlines()
@@ -105,8 +107,8 @@ def main():
         model = NetworkLarge(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
     else:
         model = Network(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
-    if num_gpus > 1:
-        model = torch.nn.DataParallel(model)
+    # if num_gpus > 1:
+    #     model = torch.nn.DataParallel(model)
     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
@@ -153,10 +155,10 @@ def main():
     for epoch in range(args.epochs):
         scheduler.step()
         logging.info('Epoch: %d lr %e', epoch, scheduler.get_lr()[0])
-        if num_gpus > 1:
-            model.module.drop_path_prob = args.drop_path_prob * epoch / args.epochs
-        else:
-            model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
+        # if num_gpus > 1:
+        #     model.module.drop_path_prob = args.drop_path_prob * epoch / args.epochs
+        # else:
+        model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
         start_time = time.time()
         train_acc, train_obj = train(train_queue, model, criterion, optimizer)
         logging.info('Train_acc: %f', train_acc)
