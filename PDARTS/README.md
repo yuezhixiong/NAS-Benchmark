@@ -1,5 +1,9 @@
 # Progressive Differentiable Architecture Search
 
+## env
+pytorch                   1.3.1           cuda100py37h53c1284_0
+torchvision               0.4.2           cuda100py37hecfc37a_0
+
 ## Generate a Random Architecture 
 
 Same as DARTS, with the restriction of 2 skip-connections maximum for a given architecture.

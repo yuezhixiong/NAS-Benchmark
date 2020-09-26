@@ -1,4 +1,4 @@
-nohup python -u train_search.py --gpu 3 --epochs 1 > search.out &
+nohup python -u train_search.py --gpu 3 > search.out &
 
 echo $!
 ps -p $!

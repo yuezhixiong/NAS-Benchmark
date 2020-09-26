@@ -1,5 +1,9 @@
 # PC-DARTS
 
+## env
+torch                     0.3.1                    pypi_0    pypi
+torchvision               0.2.1                    pypi_0    pypi
+
 ## Generate a Random Architecture
 
 ```
