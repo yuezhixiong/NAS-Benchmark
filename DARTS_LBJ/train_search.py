@@ -42,8 +42,8 @@ parser.add_argument('--train_portion', type=float, default=0.5, help='portion of
 parser.add_argument('--unrolled', action='store_true', default=True, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--adv', action='store_true', default=True, help='use adv train')
-parser.add_argument('--nop', action='store_true', default=True, help='optimize number of parameter')
+parser.add_argument('--adv', default=True, help='use adv train')
+parser.add_argument('--nop', default=True, help='optimize number of parameter')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
