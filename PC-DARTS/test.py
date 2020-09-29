@@ -23,13 +23,13 @@ parser.add_argument('--report_freq', type=float, default=50, help='report freque
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
-parser.add_argument('--model_path', type=str, default='EXP/model.pt', help='path of pretrained model')
+parser.add_argument('--model_path', type=str, default='adv_nop/weights.pt', help='path of pretrained model')
 parser.add_argument('--auxiliary', action='store_true', default=False, help='use auxiliary tower')
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
-parser.add_argument('--arch', type=str, default='DARTS', help='which architecture to use')
+parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
