@@ -23,12 +23,12 @@ parser.add_argument('--report_freq', type=float, default=50, help='report freque
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
-parser.add_argument('--model_path', type=str, default='CIFAR10.pt', help='path of pretrained model')
+parser.add_argument('--model_path', type=str, default='./begin/weights.pt', help='path of pretrained model')
 parser.add_argument('--auxiliary', action='store_true', default=True, help='use auxiliary tower')
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
-parser.add_argument('--arch', type=str, default='PDARTS', help='which architecture to use')
-parser.add_argument('--tmp_data_dir', type=str, default='/tmp/cache/', help='temp data dir')
+parser.add_argument('--arch', type=str, default='begin_unroll', help='which architecture to use')
+parser.add_argument('--tmp_data_dir', type=str, default='../data', help='temp data dir')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -56,7 +56,7 @@ def main():
   logging.info("args = %s", args)
 
   genotype = eval("genotypes.%s" % args.arch)
-  if args.dataset in LARGE_DATASETS:
+  if False: #args.dataset in LARGE_DATASETS:
     model = NetworkLarge(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
   else:
     model = Network(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
