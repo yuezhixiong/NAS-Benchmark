@@ -186,11 +186,11 @@ def main():
             if epoch < eps_no_arch:
                 model.p = float(drop_rate[sp]) * (epochs - epoch - 1) / epochs
                 model.update_p()
-                train_acc, train_obj = train_adv(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
+                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
             else:
                 model.p = float(drop_rate[sp]) * np.exp(-(epoch - eps_no_arch) * scale_factor) 
                 model.update_p()                
-                train_acc, train_obj = train_adv(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True)
+                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True)
             logging.info('Train_acc %f', train_acc)
             epoch_duration = time.time() - epoch_start
             logging.info('Epoch time: %ds', epoch_duration)
@@ -308,7 +308,8 @@ lower_limit = ((0 - mu)/ std)
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
 
-def train_adv(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True):
+def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, max_constraint, max_size, entropy, lambda_entropy, train_arch=True):
+# def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
@@ -335,7 +336,11 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
             optimizer_a.zero_grad()
             logits = model(input_search)
             loss_a = criterion(logits, target_search)
-            loss_data['darts'] = loss_a.item()
+            if entropy:
+                entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
+                            (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
+                loss_a = loss_a + lambda_entropy * entropy_loss
+                        loss_data['darts'] = loss_a.item()
             loss_a.backward()
 
             # ---- MGDA ----
@@ -348,6 +353,7 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
 
             optimizer_a.zero_grad()
             param_loss = model.param_number()
+            param_loss = model.param_number(max_constraint, max_size)
             loss_data['param'] = param_loss.item()
             param_loss.backward()
             grads['param'] = []
@@ -365,7 +371,11 @@ def train_adv(train_queue, valid_queue, model, network_params, criterion, optimi
 #             print('-'*8, sol)
             logits = model(input_search)
             loss_a = criterion(logits, target_search)
-            param_loss = model.param_number()
+            if entropy:
+                entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
+                            (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
+                loss_a = loss_a + lambda_entropy * entropy_loss
+            param_loss = model.param_number(max_constraint, max_size)
             loss = sol[0] * loss_a + sol[1] * param_loss
             loss.backward()
             optimizer_a.step()

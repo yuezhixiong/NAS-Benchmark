@@ -42,7 +42,7 @@ parser.add_argument('--train_portion', type=float, default=0.5, help='portion of
 parser.add_argument('--unrolled', action='store_true', default=True, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--adv', default=True, help='use adv train')
+parser.add_argument('--adv', type=str, default='PGD', help='use FGSM/PGD advsarial training')
 parser.add_argument('--nop', default=True, help='optimize number of parameter')
 args = parser.parse_args()
 
@@ -150,11 +150,12 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
         if args.nop:
-            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
+            # architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
+            architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels, max_constraint, max_size, entropy, lambda_entorpy)
         else:
             architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
-        if args.adv:
+        if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
 
             cifar10_mean = (0.4914, 0.4822, 0.4465)
@@ -179,10 +180,12 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             logits = model(input)
 
             loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
+        elif args.adv == 'PGD':
+            
             
         else:
             optimizer.zero_grad()
-            logits = model(input)
+            logits = model(input1)
             loss = criterion(logits, target)
 
         loss.backward()

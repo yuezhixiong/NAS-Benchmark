@@ -94,6 +94,7 @@ class Network(nn.Module):
   def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3, largemode=False):
     super(Network, self).__init__()
     self._C = C
+    self.C_list = []
     self._num_classes = num_classes
     self._layers = layers
     self._criterion = criterion
@@ -135,6 +136,7 @@ class Network(nn.Module):
       cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
       reduction_prev = reduction
       self.cells += [cell]
+      self.C_list.append(C_curr)
       C_prev_prev, C_prev = C_prev, multiplier*C_curr
 
     self.global_pooling = nn.AdaptiveAvgPool2d(1)

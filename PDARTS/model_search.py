@@ -186,7 +186,7 @@ class Network(nn.Module):
         return self._arch_parameters
 
 
-    def param_number(self):
+    def param_number(self, max_constraint, max_size):
 #         print('$'*10, self.switches_normal[0])
         def compute_u(C, is_reduction, switches_normal):
             a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
@@ -214,4 +214,7 @@ class Network(nn.Module):
                 u = compute_u(C_list[i], is_reduction=False, switches_normal=self.switches_normal)
 #             print('-'*5, alpha.size(), u.size())
             loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
-        return loss
+        if max_constraint:
+            return torch.max(0, loss-max_size)[0]
+        else:
+            return loss

@@ -366,7 +366,8 @@ def main():
     gpu_logger.stop()
 
 
-def train(train_iterator, valid_iterator, model, criterion, optimizer, optimizer_a, gpu_logger, train_arch=True):
+def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, max_constraint, max_size, entropy, lambda_entropy, train_arch=True):
+# def train(train_iterator, valid_iterator, model, criterion, optimizer, optimizer_a, gpu_logger, train_arch=True):
     # trains for one epoch
     logging.debug('training one epoch')
     objs = utils.AvgrageMeter()
