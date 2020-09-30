@@ -150,8 +150,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
         if args.nop:
-            # architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
-            architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels, max_constraint, max_size, entropy, lambda_entorpy)
+            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
+            # architect.step(input, target, input_search, target_search, lr, optimizer, 
+            #                 max_constraint, max_size, entropy, lambda_entorpy, unrolled=args.unrolled, C=args.init_channels)
         else:
             architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
@@ -181,7 +182,37 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
 
             loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
         elif args.adv == 'PGD':
-            
+            input = Variable(input, requires_grad=False).cuda()
+            adv_input = Variable(input, requires_grad=True).cuda()
+
+            cifar10_mean = (0.4914, 0.4822, 0.4465)
+            cifar10_std = (0.2471, 0.2435, 0.2616)
+            std = torch.FloatTensor(cifar10_std).view(3,1,1)
+            mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
+            std = torch.FloatTensor(cifar10_std).view(3,1,1)
+            upper_limit = ((1 - mu)/ std).cuda()
+            lower_limit = ((0 - mu)/ std).cuda()
+            epsilon = ((8 / 255.) / std).cuda()
+            alpha = ((1 / 255.) / std).cuda()
+
+            optimizer.zero_grad()
+
+            step_num=10
+            for i in range(step_num):
+                logits = model(adv_input)
+
+                loss = criterion(logits, target)
+                loss.backward(retain_graph=True)
+                grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
+                adv_next = adv_input.detach().data + alpha * torch.sign(grad)
+                delta = clamp(adv_next - input, -epsilon, epsilon)
+                adv_next = clamp(adv_input + delta, lower_limit, upper_limit)
+                adv_input = Variable(adv_next, requires_grad=True).cuda() 
+
+            logits_adv = model(adv_input)  
+            logits = model(input)
+
+            loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
             
         else:
             optimizer.zero_grad()
