@@ -35,10 +35,10 @@ class Architect(object):
     unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment+dtheta))
     return unrolled_model
 
-  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, C, max_constraint, max_size, entropy, lambda_entorpy):
+  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, C, max_constraint, max_size, entropy, lambda_entropy):
     self.optimizer.zero_grad()
     if unrolled:
-        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, max_constraint, max_size, entropy, lambda_entorpy)
+        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, max_constraint, max_size, entropy, lambda_entropy)
     else:
         self._backward_step(input_valid, target_valid)
     self.optimizer.step()
@@ -67,7 +67,8 @@ class Architect(object):
         u = compute_u(C_list[i], is_reduction=False)
       loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
     if max_constraint:
-      return torch.max(0, loss-max_size)[0]
+      # print(loss-max_size) # torch.cuda.FloatTensor 
+      return torch.max(Variable(torch.zeros(1)).cuda(), loss-max_size)[0]
     else:
       return loss
 

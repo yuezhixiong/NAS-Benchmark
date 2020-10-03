@@ -35,7 +35,7 @@ parser.add_argument('--model_path', type=str, default='saved_models', help='path
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='adv_nop', help='experiment name')
+parser.add_argument('--save', type=str, default='adv_nop_ntp', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
@@ -44,6 +44,10 @@ parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='lear
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 parser.add_argument('--adv', type=str, default='PGD', help='use FGSM/PGD advsarial training')
 parser.add_argument('--nop', default=True, help='optimize number of parameter')
+parser.add_argument('--entropy', default=True, help='use entropy in arch softmax')
+parser.add_argument('--max_constraint', default=True, help='use max_constraint in model size')
+parser.add_argument('--max_size', type=int, default=1e6, help='constrain the model size')
+
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -150,9 +154,11 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
         if args.nop:
-            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
-            # architect.step(input, target, input_search, target_search, lr, optimizer, 
-            #                 max_constraint, max_size, entropy, lambda_entorpy, unrolled=args.unrolled, C=args.init_channels)
+            # architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
+         
+            lambda_entropy = 0.5
+            architect.step(input1, target, input_search, target_search, lr, optimizer, 
+                            max_constraint=args.max_constraint, max_size=args.max_size, entropy=args.entropy, lambda_entropy=lambda_entropy, unrolled=args.unrolled, C=args.init_channels)
         else:
             architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
@@ -182,8 +188,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
 
             loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
         elif args.adv == 'PGD':
-            input = Variable(input, requires_grad=False).cuda()
             adv_input = Variable(input, requires_grad=True).cuda()
+            input = input.cuda()
 
             cifar10_mean = (0.4914, 0.4822, 0.4465)
             cifar10_std = (0.2471, 0.2435, 0.2616)
@@ -203,16 +209,16 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
 
                 loss = criterion(logits, target)
                 loss.backward(retain_graph=True)
-                grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
+                grad = torch.autograd.grad(loss, adv_input, retain_graph=False, create_graph=False)[0].detach().data
                 adv_next = adv_input.detach().data + alpha * torch.sign(grad)
                 delta = clamp(adv_next - input, -epsilon, epsilon)
-                adv_next = clamp(adv_input + delta, lower_limit, upper_limit)
+                adv_next = clamp(input + delta, lower_limit, upper_limit)
                 adv_input = Variable(adv_next, requires_grad=True).cuda() 
 
             logits_adv = model(adv_input)  
-            logits = model(input)
+            logits = model(input1)
 
-            loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
+            loss = criterion(logits, target) + 0.5 * criterion(logits_adv, target)
             
         else:
             optimizer.zero_grad()
