@@ -61,7 +61,7 @@ class Architect(object):
         u = compute_u(C_list[i], is_reduction=False)
       loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
     if max_constraint:
-      return torch.max(0, loss-max_size)[0]
+      return torch.max(1, loss-max_size)[0]
     else:
       return loss
 
@@ -107,7 +107,7 @@ class Architect(object):
                     (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
       unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
     param_loss = self.param_number(unrolled_model, max_constraint, max_size)
-    print('-'*5, sol)
+    # print('-'*5, sol)
     loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
     self.optimizer.zero_grad()
     loss.backward()
