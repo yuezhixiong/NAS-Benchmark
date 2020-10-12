@@ -35,10 +35,10 @@ class Architect(object):
     unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment+dtheta))
     return unrolled_model
 
-  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, C):
+  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, C, max_constraint, max_size, entropy, lambda_entorpy):
     self.optimizer.zero_grad()
     if unrolled:
-        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C)
+        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, max_constraint, max_size, entropy, lambda_entorpy)
     else:
         self._backward_step(input_valid, target_valid)
     self.optimizer.step()
@@ -47,7 +47,7 @@ class Architect(object):
     loss = self.model._loss(input_valid, target_valid)
     loss.backward()
 
-  def param_number(self, unrolled_model, C):
+  def param_number(self, unrolled_model, C, max_constraint, max_size):
     def compute_u(C, is_reduction):
       a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
 #       u = torch.from_numpy(np.repeat(a, 14, axis=1))
@@ -66,14 +66,21 @@ class Architect(object):
         alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
         u = compute_u(C_list[i], is_reduction=False)
       loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
-    return loss
+    if max_constraint:
+      return torch.max(0, loss-max_size)[0]
+    else:
+      return loss
 
-  def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, C):
+  def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, max_constraint, max_size, entropy, lambda_entropy):
     grads = {}
     loss_data = {}
     self.optimizer.zero_grad()
     unrolled_model = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
+    if entropy:
+      entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
+                    (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
+      unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
     loss_data['darts'] = unrolled_loss.data[0]
     unrolled_loss.backward()
 
@@ -84,7 +91,7 @@ class Architect(object):
 
     # ---- param loss ----
     self.optimizer.zero_grad()
-    param_loss = self.param_number(unrolled_model, C)
+    param_loss = self.param_number(unrolled_model, C, max_constraint, max_size)
     loss_data['param'] = param_loss.data[0]
     param_loss.backward()
     grads['param'] = []
@@ -102,8 +109,12 @@ class Architect(object):
     # ---- MGDA -----
     sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
-    param_loss = self.param_number(unrolled_model, C)
-    # print('-'*10, sol)
+    if entropy:
+      entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
+                    (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
+      unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
+    param_loss = self.param_number(unrolled_model, C, max_constraint, max_size)
+    print('-'*10, sol)
     loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
     self.optimizer.zero_grad()
     loss.backward()
@@ -154,4 +165,3 @@ class Architect(object):
       p.data.add_(R, v)
 
     return [(x-y).div_(2*R) for x, y in zip(grads_p, grads_n)]
-

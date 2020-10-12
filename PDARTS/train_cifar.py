@@ -19,7 +19,7 @@ from model import NetworkImageNet as NetworkLarge
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
-parser.add_argument('--workers', type=int, default=4, help='number of workers')
+parser.add_argument('--workers', type=int, default=1, help='number of workers')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -33,13 +33,14 @@ parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight 
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='./adv_nop/', help='experiment name')
+parser.add_argument('--save', type=str, default='./adv_nop', help='experiment name')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
-parser.add_argument('--arch', type=str, default='PDARTS', help='which architecture to use')
+parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--tmp_data_dir', type=str, default='../data', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 parser.add_argument('--gpu', type=int, default=3, help='GPU device id')
+parser.add_argument('--model_path', type=str, default='adv_nop_train', help='path to save the model')
 
 args, unparsed = parser.parse_known_args()
 
@@ -49,10 +50,10 @@ log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
     format=log_format, datefmt='%m/%d %I:%M:%S %p')
 try:
-    os.mkdir(args.save) #debug
+    os.mkdir(args.model_path) #debug
 except:
     pass
-fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
+fh = logging.FileHandler(os.path.join(args.model_path, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
@@ -170,7 +171,7 @@ def main():
         end_time = time.time()
         duration = end_time - start_time
         print('Epoch time: %ds.' % duration )
-        utils.save(model, os.path.join(args.save, 'weights.pt'))
+        utils.save(model, os.path.join(args.model_path, 'weights.pt'))
 
 def train(train_queue, model, criterion, optimizer):
     objs = utils.AvgrageMeter()
