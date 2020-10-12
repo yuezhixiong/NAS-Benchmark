@@ -1,1 +1,1 @@
-python train_search.py --save pgd_nop_max_etp --gpu 0
+python train_search.py --save pgd_nop_max_etp_cutout_batchsize --gpu 11 --cutout --batch_size 80
