@@ -19,7 +19,7 @@ from model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
-parser.add_argument('--batch_size', type=int, default=32, help='batch size')
+parser.add_argument('--batch_size', type=int, default=32, help='batch size') # 96
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
@@ -34,14 +34,15 @@ parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight 
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
-parser.add_argument('--save', type=str, default='EXP', help='experiment name')
-parser.add_argument('--log_save', type=str, default='adv_nop', help='experiment name')
+parser.add_argument('--save', type=str, default='adv_nop_train', help='experiment name')
+# parser.add_argument('--log_save', type=str, default='adv_nop', help='experiment name')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
-parser.add_argument('--arch', type=str, default='DARTS', help='which architecture to use')
+parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.save = '{}/{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+print(args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -68,16 +69,16 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
     
-  f = open(os.path.join(args.log_save, 'log.txt'))
-  f_list = f.readlines()
-  f.close()
-  for i in range(len(f_list)-1, 0, -1):
-    if f_list[i][24:32] == 'genotype':
-      genotype = f_list[i][35:-1]
-      break
-  f = open('./genotypes.py', 'a')
-  f.write(args.arch+' = '+genotype+'\n')
-  f.close()
+  # f = open(os.path.join(args.log_save, 'log.txt'))
+  # f_list = f.readlines()
+  # f.close()
+  # for i in range(len(f_list)-1, 0, -1):
+  #   if f_list[i][24:32] == 'genotype':
+  #     genotype = f_list[i][35:-1]
+  #     break
+  # f = open('./genotypes.py', 'a')
+  # f.write(args.arch+' = '+genotype+'\n')
+  # f.close()
 
   genotype = eval("genotypes.%s" % args.arch)
   model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
@@ -106,6 +107,7 @@ def main():
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
 
+  best_acc = 0
   for epoch in range(args.epochs):
     scheduler.step()
     logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
@@ -116,9 +118,10 @@ def main():
 
     valid_acc, valid_obj = infer(valid_queue, model, criterion)
     logging.info('valid_acc %f', valid_acc)
-
-    utils.save(model, os.path.join(args.save, 'weights.pt'))
-
+    if valid_acc > best_acc:
+      best_acc = valid_acc
+      utils.save(model, os.path.join(args.save, 'best_model.pt'))
+      
 
 def train(train_queue, model, criterion, optimizer):
   objs = utils.AvgrageMeter()
