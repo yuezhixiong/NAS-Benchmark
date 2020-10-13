@@ -8,7 +8,7 @@ sleep 30s
 ps -p $!
 done
 
-nohup python -u train.py --log_save ablation_nop --gpu 2 > ablation_nop/train.out &
+nohup python -u train.py --log_save ablation_nop --arch ablation_nop --gpu 3 > ablation_nop/train.out &
 
 echo $!
 ps -p $!
