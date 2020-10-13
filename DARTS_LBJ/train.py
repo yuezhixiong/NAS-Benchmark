@@ -29,9 +29,9 @@ parser.add_argument('--epochs', type=int, default=600, help='num of training epo
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
-parser.add_argument('--auxiliary', action='store_true', default=False, help='use auxiliary tower')
+parser.add_argument('--auxiliary', action='store_true', default=True, help='use auxiliary tower') # False
 parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight for auxiliary loss')
-parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
+parser.add_argument('--cutout', action='store_true', default=True, help='use cutout') # False
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
 parser.add_argument('--save', type=str, default='adv_nop_train', help='experiment name')
@@ -41,7 +41,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.save = '{}/{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.save = '{}/auxiliary{}_cutout{}_batchsize{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size)
 print(args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
@@ -121,6 +121,7 @@ def main():
     if valid_acc > best_acc:
       best_acc = valid_acc
       utils.save(model, os.path.join(args.save, 'best_model.pt'))
+    logging.info('best_acc %f', best_acc)
       
 
 def train(train_queue, model, criterion, optimizer):
