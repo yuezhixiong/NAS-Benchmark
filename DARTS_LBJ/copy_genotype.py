@@ -14,3 +14,5 @@ for i in range(len(f_list)-1, 0, -1):
 f = open('./genotypes.py', 'a')
 f.write('\n'+args.save+' = '+genotype+'\n')
 f.close()
+
+print(args.save)
