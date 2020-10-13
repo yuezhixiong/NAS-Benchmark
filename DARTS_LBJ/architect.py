@@ -108,7 +108,10 @@ class Architect(object):
         grads[t][gr_i] = grads[t][gr_i] / gn[t]
     
     # ---- MGDA -----
-    sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+    if args.MGDA:
+      sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+    else:
+      sol = [1,1]
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
     if entropy:
       entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
