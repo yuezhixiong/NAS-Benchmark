@@ -48,6 +48,7 @@ parser.add_argument('--entropy', default=True, help='use entropy in arch softmax
 parser.add_argument('--max_constraint', default=True, help='use max_constraint in model size')
 parser.add_argument('--max_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', type=bool, default=True, help='use MGDA')
+parser.add_argument('--grad_norm', type=bool, default=True, help='use gradient normalization in MGDA')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))

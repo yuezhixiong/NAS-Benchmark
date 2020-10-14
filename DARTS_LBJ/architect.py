@@ -19,6 +19,8 @@ class Architect(object):
     self.model = model
     self.optimizer = torch.optim.Adam(self.model.arch_parameters(),
         lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
+    self.mgda = args.MGDA
+    self.grad_norm = args.grad_norm
 
   def _compute_unrolled_model(self, input, target, eta, network_optimizer):
     # loss on train data
@@ -102,13 +104,17 @@ class Architect(object):
     # dalpha_param = [v.grad for v in unrolled_model.arch_parameters()]
     # ---- param loss ----
     
-    gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
+    if self.grad_norm:
+      gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
+    else:
+      gn = gradient_normalizers(grads, loss_data, normalization_type='none')
+
     for t in ['darts', 'param']:
       for gr_i in range(len(grads[t])):
         grads[t][gr_i] = grads[t][gr_i] / gn[t]
     
     # ---- MGDA -----
-    if args.MGDA:
+    if self.mgda:
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     else:
       sol = [1,1]
