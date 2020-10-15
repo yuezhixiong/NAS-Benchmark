@@ -21,6 +21,7 @@ from architect import Architect
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'])
 parser.add_argument('--batch_size', type=int, default=8, help='batch size') # 64
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
@@ -32,23 +33,23 @@ parser.add_argument('--epochs', type=int, default=50, help='num of training epoc
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
-parser.add_argument('--cutout', action='store_true', default=True, help='use cutout') # false
+parser.add_argument('--cutout', action='store_true', default=False, help='use cutout') # false
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
 parser.add_argument('--save', type=str, default='adv_nop_etp', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
-parser.add_argument('--unrolled', action='store_true', default=True, help='use one-step unrolled validation loss')
+parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--adv', type=str, default='none', help='use FGSM/PGD advsarial training')
-parser.add_argument('--nop', default=True, help='optimize number of parameter')
-parser.add_argument('--entropy', default=True, help='use entropy in arch softmax')
-parser.add_argument('--max_constraint', default=True, help='use max_constraint in model size')
+parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD'], help='use FGSM/PGD advsarial training')
+parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
+parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
+parser.add_argument('--max_constraint', default=False, action='store_true', help='use max_constraint in model size')
 parser.add_argument('--max_size', type=int, default=1e6, help='constrain the model size')
-parser.add_argument('--MGDA', type=bool, default=True, help='use MGDA')
-parser.add_argument('--grad_norm', type=bool, default=True, help='use gradient normalization in MGDA')
+parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
+parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -91,8 +92,12 @@ def main():
             momentum=args.momentum,
             weight_decay=args.weight_decay)
 
-    train_transform, valid_transform = utils._data_transforms_cifar10(args)
-    train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
+    if args.dataset == 'cifar10':
+        train_transform, _ = utils._data_transforms_cifar10(args)
+        train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
+    elif args.dataset == 'cifar100':
+        train_transform, _ = utils._data_transforms_cifar100(args)
+        train_data = dset.CIFAR100(root=args.data, train=True, download=True, transform=train_transform)
 
     num_train = len(train_data)
     indices = list(range(num_train))

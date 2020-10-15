@@ -1,8 +1,9 @@
 save=ablation_mgda
-gpu=12
+gpu=14
 
-python train_search.py --save $save --gpu $gpu --batch_size 64 --cutout \
---adv none --MGDA false --entropy false --max_constraint false
+python train_search.py --save $save --gpu $gpu \
+--batch_size 64 --unrolled --cutout \
+--adv FGSM --nop
 
 # python copy_genotype.py --save $save
 
