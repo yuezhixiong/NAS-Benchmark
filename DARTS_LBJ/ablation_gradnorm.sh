@@ -1,8 +1,9 @@
 save=ablation_gradnorm
 gpu=13
 
-python train_search.py --save $save --gpu $gpu --batch_size 64 --cutout \
---adv none --grad_norm false --entropy false --max_constraint false
+python train_search.py --save $save --gpu $gpu \
+--batch_size 64 --unrolled --cutout \
+--adv FGSM --nop --MGDA
 
 # python copy_genotype.py --save $save
 
