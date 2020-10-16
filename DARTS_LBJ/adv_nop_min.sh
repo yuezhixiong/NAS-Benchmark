@@ -1,9 +1,9 @@
-save=adv_nop_cifar100
-gpu=2
+save=adv_nop_min
+gpu=1
 
 python train_search.py --save $save --gpu $gpu \
 --batch_size 20 --unrolled --cutout \
---dataset cifar100 --adv FGSM --nop --MGDA --grad_norm
+--adv FGSM --nop --MGDA --grad_norm --constrain min
 
 # python copy_genotype.py --save $save
 
