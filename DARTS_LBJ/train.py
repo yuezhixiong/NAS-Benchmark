@@ -19,6 +19,7 @@ from model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'])
 parser.add_argument('--batch_size', type=int, default=32, help='batch size') # 96
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -41,7 +42,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.save = '{}/auxiliary{}_cutout{}_batchsize{}_channel{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size, args.init_channels)
+args.save = '{}/auxiliary{}_cutout{}_batchsize{}_channel{}_dataset{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size, args.init_channels, args.dataset)
 print(args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
@@ -51,8 +52,6 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
-
-CIFAR_CLASSES = 10
 
 
 def main():
@@ -69,16 +68,16 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
     
-  # f = open(os.path.join(args.log_save, 'log.txt'))
-  # f_list = f.readlines()
-  # f.close()
-  # for i in range(len(f_list)-1, 0, -1):
-  #   if f_list[i][24:32] == 'genotype':
-  #     genotype = f_list[i][35:-1]
-  #     break
-  # f = open('./genotypes.py', 'a')
-  # f.write(args.arch+' = '+genotype+'\n')
-  # f.close()
+  if args.dataset == 'cifar10':
+      CIFAR_CLASSES = 10
+      train_transform, valid_transform = utils._data_transforms_cifar10(args)
+      train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
+      valid_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
+  elif args.dataset == 'cifar100':
+      CIFAR_CLASSES = 100
+      train_transform, valid_transform = utils._data_transforms_cifar100(args)
+      train_data = dset.CIFAR100(root=args.data, train=True, download=True, transform=train_transform)
+      valid_data = dset.CIFAR100(root=args.data, train=False, download=True, transform=valid_transform)
 
   genotype = eval("genotypes.%s" % args.arch)
   model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
@@ -95,9 +94,7 @@ def main():
       weight_decay=args.weight_decay
       )
 
-  train_transform, valid_transform = utils._data_transforms_cifar10(args)
-  train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
-  valid_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
+  
 
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=2)
