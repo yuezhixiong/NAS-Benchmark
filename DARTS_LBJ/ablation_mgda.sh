@@ -1,11 +1,11 @@
 save=ablation_mgda
 gpu=14
 
-python train_search.py --save $save --gpu $gpu \
---batch_size 64 --unrolled --cutout \
---adv FGSM --nop
+# python train_search.py --save $save --gpu $gpu \
+# --batch_size 64 --unrolled --cutout \
+# --adv FGSM --nop
 
-# python copy_genotype.py --save $save
+python copy_genotype.py --save $save
 
 # python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary --batch_size 96
 
