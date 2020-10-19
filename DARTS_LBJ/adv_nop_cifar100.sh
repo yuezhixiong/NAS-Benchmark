@@ -1,5 +1,5 @@
 save=adv_nop_cifar100
-gpu=0
+gpu=1
 
 # python train_search.py --save $save --gpu $gpu \
 # --batch_size 20 --unrolled --cutout \
