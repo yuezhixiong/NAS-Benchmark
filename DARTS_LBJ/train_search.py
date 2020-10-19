@@ -46,8 +46,8 @@ parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weigh
 parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD'], help='use FGSM/PGD advsarial training')
 parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
 parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
-parser.add_argument('--max_constraint', default=False, action='store_true', help='use max_constraint in model size')
-parser.add_argument('--max_size', type=int, default=1e6, help='constrain the model size')
+parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
+parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 args = parser.parse_args()
@@ -61,10 +61,6 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
-
-
-CIFAR_CLASSES = 10
-
 
 def main():
     if not torch.cuda.is_available():
@@ -80,6 +76,15 @@ def main():
     logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
 
+    if args.dataset == 'cifar10':
+        CIFAR_CLASSES = 10
+        train_transform, _ = utils._data_transforms_cifar10(args)
+        train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
+    elif args.dataset == 'cifar100':
+        CIFAR_CLASSES = 100
+        train_transform, _ = utils._data_transforms_cifar100(args)
+        train_data = dset.CIFAR100(root=args.data, train=True, download=True, transform=train_transform)
+
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.cuda()
     model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
@@ -92,12 +97,7 @@ def main():
             momentum=args.momentum,
             weight_decay=args.weight_decay)
 
-    if args.dataset == 'cifar10':
-        train_transform, _ = utils._data_transforms_cifar10(args)
-        train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
-    elif args.dataset == 'cifar100':
-        train_transform, _ = utils._data_transforms_cifar100(args)
-        train_data = dset.CIFAR100(root=args.data, train=True, download=True, transform=train_transform)
+
 
     num_train = len(train_data)
     indices = list(range(num_train))
@@ -164,7 +164,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
          
             lambda_entropy = 0.5
             architect.step(input1, target, input_search, target_search, lr, optimizer, 
-                            max_constraint=args.max_constraint, max_size=args.max_size, entropy=args.entropy, lambda_entropy=lambda_entropy, unrolled=args.unrolled, C=args.init_channels)
+                            constrain=args.constrain, constrain_size=args.constrain_size, entropy=args.entropy, lambda_entropy=lambda_entropy, unrolled=args.unrolled, C=args.init_channels)
         else:
             architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 

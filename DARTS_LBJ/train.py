@@ -26,7 +26,7 @@ parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight dec
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=600, help='num of training epochs')
-parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
+parser.add_argument('--init_channels', type=int, default=36, help='num of init channels') # 36
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
 parser.add_argument('--auxiliary', action='store_true', default=True, help='use auxiliary tower') # False
@@ -41,7 +41,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.save = '{}/auxiliary{}_cutout{}_batchsize{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size)
+args.save = '{}/auxiliary{}_cutout{}_batchsize{}_channel{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size, args.init_channels)
 print(args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
