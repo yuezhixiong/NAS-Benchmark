@@ -118,6 +118,7 @@ class Architect(object):
     # ---- MGDA -----
     if self.mgda:
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+      print(sol)
     else:
       sol = [1,1]
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
