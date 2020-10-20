@@ -42,7 +42,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.save = '{}/auxiliary{}_cutout{}_batchsize{}_channel{}_dataset{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size, args.init_channels, args.dataset)
+args.save = '{}/auxiliary{}_cutout{}_batchsize{}_channel{}_{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size, args.init_channels, args.dataset)
 print(args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 

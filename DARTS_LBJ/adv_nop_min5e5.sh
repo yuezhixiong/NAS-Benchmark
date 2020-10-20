@@ -1,9 +1,9 @@
-save=adv_nop_min1e5
-gpu=3
+save=adv_nop_min5e5
+gpu=2
 
 python train_search.py --save $save --gpu $gpu \
 --batch_size 20 --unrolled --cutout \
---adv FGSM --nop --MGDA --constrain min
+--adv FGSM --nop --MGDA --constrain min --constrain_size 500000
 
 # python copy_genotype.py --save $save
 

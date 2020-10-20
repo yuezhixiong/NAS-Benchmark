@@ -107,7 +107,7 @@ class Architect(object):
     # ---- param loss ----
     
     if self.grad_norm:
-      gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
+      gn = gradient_normalizers(grads, loss_data, normalization_type='l2') # loss+, loss, l2
     else:
       gn = gradient_normalizers(grads, loss_data, normalization_type='none')
 
@@ -121,6 +121,7 @@ class Architect(object):
       print(sol)
     else:
       sol = [1,1]
+    print(sol)
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
     if entropy:
       entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
