@@ -47,7 +47,7 @@ parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 
 parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
 parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
 parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
-parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
+parser.add_argument('--constrain_size', type=int, default=1e5, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 args = parser.parse_args()

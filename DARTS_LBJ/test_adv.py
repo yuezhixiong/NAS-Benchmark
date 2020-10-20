@@ -32,8 +32,8 @@ parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
 parser.add_argument('--attack', type=str, default='FGSM', help='which attack to use')
 
-parser.add_argument('--epsilon', default=8, type=int)
-parser.add_argument('--alpha', default=0.8, type=float, help='Step size')
+parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--step_num', default=20, type=int, help='Step number of PGD attack')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -96,8 +96,6 @@ def test_FGSM(net, testloader):
 
     epsilon = (args.epsilon / 255.) / std
     epsilon = epsilon.cuda()
-    alpha = (args.alpha / 255.) / std
-    alpha = alpha.cuda()
 
     net.eval()
     criterion = nn.CrossEntropyLoss().cuda()
@@ -113,7 +111,7 @@ def test_FGSM(net, testloader):
         grad = torch.autograd.grad(loss, images, 
                                    retain_graph=False, create_graph=False)[0]
         grad = grad.detach().data
-        delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
+        delta = clamp(epsilon * torch.sign(grad), -epsilon, epsilon)
         delta = clamp(delta, lower_limit.cuda() - images.data, upper_limit.cuda() - images.data)
         adv_input = Variable(images.data + delta, requires_grad=False).cuda()
 
@@ -140,8 +138,8 @@ def test_PGD(net, testloader, step_num=10):
 
     epsilon = (args.epsilon / 255.) / std
     epsilon = epsilon.cuda()
-    alpha = (args.alpha / 255.) / std
-    alpha = alpha.cuda()
+    step_size = (2.5 * args.epsilon / 255.) / std / args.step_num
+    step_size = step_size.cuda()
 
     net.eval()
     criterion = nn.CrossEntropyLoss().cuda()
@@ -160,7 +158,7 @@ def test_PGD(net, testloader, step_num=10):
           grad = torch.autograd.grad(loss, adv_input, 
                                     retain_graph=False, create_graph=False)[0]
           grad = grad.detach().data
-          adv_images = adv_input.detach().data + alpha * torch.sign(grad)
+          adv_images = adv_input.detach().data + step_size * torch.sign(grad)
           delta = clamp(adv_images - images, -epsilon, epsilon)
           adv_images = clamp(images + delta, lower_limit, upper_limit)
           adv_input = Variable(adv_images, requires_grad=True).cuda()
