@@ -118,7 +118,6 @@ class Architect(object):
     # ---- MGDA -----
     if self.mgda:
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
-      print(sol)
     else:
       sol = [1,1]
     print(sol)
