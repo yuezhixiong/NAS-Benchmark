@@ -32,7 +32,7 @@ parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
 parser.add_argument('--attack', type=str, default='FGSM', help='which attack to use')
 
-parser.add_argument('--epsilon', default=2, type=int)
+
 parser.add_argument('--step_num', default=20, type=int, help='Step number of PGD attack')
 args = parser.parse_args()
 
@@ -132,7 +132,6 @@ def test_PGD(net, testloader, step_num=10):
     cifar10_std = (0.2471, 0.2435, 0.2616)
     std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
     mu = torch.FloatTensor(cifar10_mean).view(3,1,1).cuda()
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
     upper_limit = ((1 - mu)/ std).cuda()
     lower_limit = ((0 - mu)/ std).cuda()
 

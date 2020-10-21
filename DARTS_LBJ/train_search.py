@@ -44,10 +44,13 @@ parser.add_argument('--unrolled', action='store_true', default=False, help='use 
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD'], help='use FGSM/PGD advsarial training')
+parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD free adversarial training')
+
 parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
 parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
 parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
-parser.add_argument('--constrain_size', type=int, default=1e5, help='constrain the model size')
+parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 args = parser.parse_args()
@@ -118,6 +121,10 @@ def main():
 
     architect = Architect(model, args)
 
+    if args.adv == 'PGD':
+        args.epochs = int(args.epochs / args.step_num)
+        print('free PGD adversarial training for {} epoch'.format(args.epochs))
+
     for epoch in range(args.epochs):
         scheduler.step()
         lr = scheduler.get_lr()[0]
@@ -125,9 +132,6 @@ def main():
 
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
-
-        print(F.softmax(model.alphas_normal, dim=-1))
-        print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
         train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args)
@@ -138,6 +142,9 @@ def main():
         logging.info('valid_acc %f', valid_acc)
 
         utils.save(model, os.path.join(args.save, 'weights.pt'))
+
+        print(F.softmax(model.alphas_normal, dim=-1))
+        print(F.softmax(model.alphas_reduce, dim=-1))
 
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
@@ -173,7 +180,6 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
 
             cifar10_mean = (0.4914, 0.4822, 0.4465)
             cifar10_std = (0.2471, 0.2435, 0.2616)
-            std = torch.FloatTensor(cifar10_std).view(3,1,1)
             mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
             std = torch.FloatTensor(cifar10_std).view(3,1,1)
             upper_limit = ((1 - mu)/ std).cuda()
@@ -193,47 +199,51 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             logits = model(input)
 
             loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
+            loss.backward()
+            nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+            optimizer.step()
+        
         elif args.adv == 'PGD':
-            adv_input = Variable(input, requires_grad=True).cuda()
+            # adv_input = Variable(input, requires_grad=True).cuda()
             input = input.cuda()
-
+            
             cifar10_mean = (0.4914, 0.4822, 0.4465)
             cifar10_std = (0.2471, 0.2435, 0.2616)
-            std = torch.FloatTensor(cifar10_std).view(3,1,1)
             mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
             std = torch.FloatTensor(cifar10_std).view(3,1,1)
             upper_limit = ((1 - mu)/ std).cuda()
             lower_limit = ((0 - mu)/ std).cuda()
-            epsilon = ((8 / 255.) / std).cuda()
-            alpha = ((1 / 255.) / std).cuda()
+            epsilon = ((args.epsilon / 255.) / std).cuda()
 
-            optimizer.zero_grad()
-
-            step_num=10
-            for i in range(step_num):
+            delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
+            # print(adv_input.size(),delta.size())
+            adv_input = Variable(input + delta, requires_grad=True)
+            
+            for i in range(args.step_num):
                 logits = model(adv_input)
-
                 loss = criterion(logits, target)
+                optimizer.zero_grad()
                 loss.backward(retain_graph=True)
-                grad = torch.autograd.grad(loss, adv_input, retain_graph=False, create_graph=False)[0].detach().data
-                adv_next = adv_input.detach().data + alpha * torch.sign(grad)
-                delta = clamp(adv_next - input, -epsilon, epsilon)
+                # loss.backward()
+                grad_adv = torch.autograd.grad(loss, adv_input, retain_graph=False, create_graph=False)[0].detach().data
+                # grad_adv = adv_input.grad.detach().data
+                # print(grad_adv)
+                delta = delta + epsilon * torch.sign(grad_adv)
+                delta = clamp(delta, -epsilon, epsilon)
                 adv_next = clamp(input + delta, lower_limit, upper_limit)
-                adv_input = Variable(adv_next, requires_grad=True).cuda() 
+                adv_input = Variable(adv_next, requires_grad=True).cuda()
 
-            logits_adv = model(adv_input)  
-            logits = model(input1)
-
-            loss = criterion(logits, target) + 0.5 * criterion(logits_adv, target)
+                nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+                optimizer.step()
             
         else:
             optimizer.zero_grad()
             logits = model(input1)
             loss = criterion(logits, target)
+            loss.backward()
+            nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+            optimizer.step()
 
-        loss.backward()
-        nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
-        optimizer.step()
 
         prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
         objs.update(loss.data[0], n)
