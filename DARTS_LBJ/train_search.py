@@ -154,6 +154,15 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
 
+    if args.dataset == 'cifar10':
+        cifar10_mean = (0.4914, 0.4822, 0.4465)
+        cifar10_std = (0.2471, 0.2435, 0.2616)
+        mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
+        std = torch.FloatTensor(cifar10_std).view(3,1,1)
+        upper_limit = ((1 - mu)/ std).cuda()
+        lower_limit = ((0 - mu)/ std).cuda()
+
+
     for step, (input, target) in enumerate(train_queue):
         model.train()
         n = input.size(0)
@@ -178,27 +187,23 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
 
-            cifar10_mean = (0.4914, 0.4822, 0.4465)
-            cifar10_std = (0.2471, 0.2435, 0.2616)
-            mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
-            std = torch.FloatTensor(cifar10_std).view(3,1,1)
-            upper_limit = ((1 - mu)/ std).cuda()
-            lower_limit = ((0 - mu)/ std).cuda()
-            epsilon = ((8 / 255.) / std).cuda()
-            alpha = ((10 / 255.) / std).cuda()
+            epsilon = ((args.epsilon / 255.) / std).cuda()
+            alpha = epsilon * 1.25
+            delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
 
-            optimizer.zero_grad()
             logits = model(input)
             loss = criterion(logits, target)
             loss.backward(retain_graph=True)
             grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
-            delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
-            delta = clamp(delta, lower_limit.cuda() - input.data, upper_limit.cuda() - input.data)
+            
+            delta = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+            delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
             logits_adv = model(adv_input)  
             logits = model(input)
 
-            loss = 0.5 * criterion(logits, target) + 0.5 * criterion(logits_adv, target)
+            loss = criterion(logits_adv, target)
+            optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
             optimizer.step()
@@ -207,12 +212,6 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             # adv_input = Variable(input, requires_grad=True).cuda()
             input = input.cuda()
             
-            cifar10_mean = (0.4914, 0.4822, 0.4465)
-            cifar10_std = (0.2471, 0.2435, 0.2616)
-            mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
-            std = torch.FloatTensor(cifar10_std).view(3,1,1)
-            upper_limit = ((1 - mu)/ std).cuda()
-            lower_limit = ((0 - mu)/ std).cuda()
             epsilon = ((args.epsilon / 255.) / std).cuda()
 
             delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
