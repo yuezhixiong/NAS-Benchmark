@@ -155,12 +155,16 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     top5 = utils.AvgrageMeter()
 
     if args.dataset == 'cifar10':
-        cifar10_mean = (0.4914, 0.4822, 0.4465)
-        cifar10_std = (0.2471, 0.2435, 0.2616)
-        mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
-        std = torch.FloatTensor(cifar10_std).view(3,1,1)
-        upper_limit = ((1 - mu)/ std).cuda()
-        lower_limit = ((0 - mu)/ std).cuda()
+        mean = (0.4914, 0.4822, 0.4465)
+        std = (0.2471, 0.2435, 0.2616)
+    elif args.dataset == 'cifar100':
+        mean = (0.5071, 0.4867, 0.4408)
+        std = (0.2675, 0.2565, 0.2761)
+
+    mean = torch.FloatTensor(mean).view(3,1,1)
+    std = torch.FloatTensor(std).view(3,1,1)
+    upper_limit = ((1 - mean)/ std).cuda()
+    lower_limit = ((0 - mean)/ std).cuda()
 
 
     for step, (input, target) in enumerate(train_queue):
