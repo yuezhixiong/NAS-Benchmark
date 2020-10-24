@@ -10,8 +10,11 @@ gpu=1
 # python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
 # --batch_size 96 --init_channels 12
 
+# python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
+# --batch_size 96 --init_channels 20
+
 python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
---batch_size 96 --init_channels 20
+--batch_size 48 --init_channels 36
 
 # python test_adv.py --arch $save --batch_size 32 --gpu $gpu --auxiliary --cutout \
 # --attack PGD --init_channels 12 \
