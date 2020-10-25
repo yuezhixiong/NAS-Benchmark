@@ -34,7 +34,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--attack', type=str, default='FGSM', help='which attack to use')
 
 parser.add_argument('--epsilon', default=2, type=int)
-parser.add_argument('--step_num', default=20, type=int, help='Step number of PGD attack')
+parser.add_argument('--step_num', default=10, type=int, help='Step number of PGD attack')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -95,12 +95,13 @@ def main():
   upper_limit = ((1 - mean)/ std).cuda()
   lower_limit = ((0 - mean)/ std).cuda()
   epsilon = ((args.epsilon / 255.) / std).cuda()
+  step_size = 2.5 * epsilon / args.step_num
 
   print('using {} attack'.format(args.attack))
   if args.attack == 'FGSM':
       test_adv_acc = test_FGSM(model, test_queue, upper_limit, lower_limit, epsilon)
   elif args.attack == 'PGD':  
-      test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit)
+      test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit, epsilon, step_size)
   logging.info('test_adv_acc %f', test_adv_acc)
 
 def clamp(X, lower_limit, upper_limit):
@@ -138,10 +139,7 @@ def test_FGSM(net, testloader, upper_limit, lower_limit, epsilon):
     
     return acc
 
-def test_PGD(net, testloader, upper_limit, lower_limit, epsilon):
-
-    step_size = (2.5 * args.epsilon / 255.) / std / args.step_num
-    step_size = step_size.cuda()
+def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
 
     net.eval()
     criterion = nn.CrossEntropyLoss().cuda()
@@ -153,7 +151,7 @@ def test_PGD(net, testloader, upper_limit, lower_limit, epsilon):
         adv_input = Variable(images, requires_grad=True).cuda()
         # print(images.min(),images.max())
 
-        for i in range(step_num):
+        for i in range(args.step_num):
           logits, _ = net(adv_input)
           loss = criterion(logits, labels)
           loss.backward(retain_graph=True)
