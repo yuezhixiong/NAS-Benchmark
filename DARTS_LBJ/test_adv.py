@@ -18,6 +18,7 @@ from model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'])
 parser.add_argument('--batch_size', type=int, default=1, help='batch size')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
@@ -40,8 +41,6 @@ log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
     format=log_format, datefmt='%m/%d %I:%M:%S %p')
 
-CIFAR_CLASSES = 10
-
 
 def main():
   if not torch.cuda.is_available():
@@ -57,6 +56,15 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
+  if args.dataset == 'cifar10':
+    CIFAR_CLASSES = 10
+    _, valid_transform = utils._data_transforms_cifar10(args)
+    test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
+  elif args.dataset == 'cifar100':
+    CIFAR_CLASSES = 100
+    _, valid_transform = utils._data_transforms_cifar100(args)
+    test_data = dset.CIFAR100(root=args.data, train=False, download=True, transform=valid_transform)
+
   genotype = eval("genotypes.%s" % args.arch)
   model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
   model = model.cuda()
@@ -67,35 +75,38 @@ def main():
   criterion = nn.CrossEntropyLoss()
   criterion = criterion.cuda()
 
-  _, test_transform = utils._data_transforms_cifar10(args)
-  test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=test_transform)
+  # _, test_transform = utils._data_transforms_cifar10(args)
+  # test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=test_transform)
 
   test_queue = torch.utils.data.DataLoader(
       test_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=1)
 
   model.drop_path_prob = 0
   
+  if args.dataset == 'cifar10':
+    mean = (0.4914, 0.4822, 0.4465)
+    std = (0.2471, 0.2435, 0.2616)
+  elif args.dataset == 'cifar100':
+    mean = (0.5071, 0.4867, 0.4408)
+    std = (0.2675, 0.2565, 0.2761)
+
+  mean = torch.FloatTensor(mean).view(3,1,1)
+  std = torch.FloatTensor(std).view(3,1,1)
+  upper_limit = ((1 - mean)/ std).cuda()
+  lower_limit = ((0 - mean)/ std).cuda()
+  epsilon = ((args.epsilon / 255.) / std).cuda()
+
   print('using {} attack'.format(args.attack))
   if args.attack == 'FGSM':
-      test_adv_acc = test_FGSM(model, test_queue)
+      test_adv_acc = test_FGSM(model, test_queue, upper_limit, lower_limit, epsilon)
   elif args.attack == 'PGD':  
-      test_adv_acc = test_PGD(model, test_queue)
+      test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit)
   logging.info('test_adv_acc %f', test_adv_acc)
 
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
 
-def test_FGSM(net, testloader):
-    cifar10_mean = (0.4914, 0.4822, 0.4465)
-    cifar10_std = (0.2471, 0.2435, 0.2616)
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
-    mu = torch.FloatTensor(cifar10_mean).view(3,1,1).cuda()
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
-    upper_limit = ((1 - mu)/ std)
-    lower_limit = ((0 - mu)/ std)
-
-    epsilon = (args.epsilon / 255.) / std
-    epsilon = epsilon.cuda()
+def test_FGSM(net, testloader, upper_limit, lower_limit, epsilon):
 
     net.eval()
     criterion = nn.CrossEntropyLoss().cuda()
@@ -127,16 +138,8 @@ def test_FGSM(net, testloader):
     
     return acc
 
-def test_PGD(net, testloader, step_num=10):
-    cifar10_mean = (0.4914, 0.4822, 0.4465)
-    cifar10_std = (0.2471, 0.2435, 0.2616)
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
-    mu = torch.FloatTensor(cifar10_mean).view(3,1,1).cuda()
-    upper_limit = ((1 - mu)/ std).cuda()
-    lower_limit = ((0 - mu)/ std).cuda()
+def test_PGD(net, testloader, upper_limit, lower_limit, epsilon):
 
-    epsilon = (args.epsilon / 255.) / std
-    epsilon = epsilon.cuda()
     step_size = (2.5 * args.epsilon / 255.) / std / args.step_num
     step_size = step_size.cuda()
 

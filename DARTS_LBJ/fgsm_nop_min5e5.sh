@@ -6,14 +6,18 @@ gpu=6
 # --adv FGSM --nop --MGDA \
 # --constrain min --constrain_size 500000
 
-python copy_genotype.py --save $save
+# python copy_genotype.py --save $save
 
-python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
---batch_size 96 --init_channels 36
+# python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
+# --batch_size 96 --init_channels 36
 
-# python test_adv.py --arch $save --batch_size 32 --gpu $gpu --auxiliary --cutout \
-# --attack PGD --init_channels 12 \
-# --model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/adv_nop_min/auxiliary0.4_cutout16_batchsize50_channel12/best_model.pt"
+python test_adv.py --arch $save --batch_size 32 --gpu $gpu --auxiliary --cutout \
+--attack FGSM --init_channels 36 \
+--model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min5e5/auxiliary0.4_cutout16_batchsize96_channel36_cifar10/best_model.pt"
+
+python test_adv.py --arch $save --batch_size 32 --gpu $gpu --auxiliary --cutout \
+--attack PGD --init_channels 36 \
+--model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min5e5/auxiliary0.4_cutout16_batchsize96_channel36_cifar10/best_model.pt"
 
 # python test_adv.py --arch $save --batch_size 32 --gpu $gpu --auxiliary --cutout \
 # --attack FGSM --init_channels 20 \
