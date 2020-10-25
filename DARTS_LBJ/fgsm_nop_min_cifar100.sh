@@ -11,9 +11,9 @@ gpu=7
 # python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
 # --batch_size 96 --init_channels 36 --dataset cifar100
 
-python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
---attack FGSM --init_channels 36 --dataset cifar100 \
---model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min_cifar100/auxiliary0.4_cutout16_batchsize96_channel36_cifar100/best_model.pt"
+# python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
+# --attack FGSM --init_channels 36 --dataset cifar100 \
+# --model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min_cifar100/auxiliary0.4_cutout16_batchsize96_channel36_cifar100/best_model.pt"
 
 python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
 --attack PGD --init_channels 36 --dataset cifar100 \
