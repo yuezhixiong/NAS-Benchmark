@@ -19,7 +19,7 @@ from model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
-parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'])
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
 parser.add_argument('--batch_size', type=int, default=32, help='batch size') # 96
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -69,18 +69,23 @@ def main():
   logging.info("args = %s", args)
     
   if args.dataset == 'cifar10':
-      CIFAR_CLASSES = 10
+      class_num = 10
       train_transform, valid_transform = utils._data_transforms_cifar10(args)
       train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
       valid_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
   elif args.dataset == 'cifar100':
-      CIFAR_CLASSES = 100
+      class_num = 100
       train_transform, valid_transform = utils._data_transforms_cifar100(args)
       train_data = dset.CIFAR100(root=args.data, train=True, download=True, transform=train_transform)
       valid_data = dset.CIFAR100(root=args.data, train=False, download=True, transform=valid_transform)
+  elif args.dataset == 'svhn':
+      class_num = 10 
+      train_transform, valid_transform = utils._data_transforms_svhn(args)
+      train_data = dset.SVHN(root=args.data, split='train', download=True, transform=train_transform)
+      valid_data = dset.SVHN(root=args.data, split='test', download=True, transform=valid_transform)
 
   genotype = eval("genotypes.%s" % args.arch)
-  model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
+  model = Network(args.init_channels, class_num, args.layers, args.auxiliary, genotype)
   
   model = model.cuda()
 

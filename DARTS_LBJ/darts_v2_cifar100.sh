@@ -1,11 +1,10 @@
-save=DARTS_V2
-gpu=1
+save=darts_v2_cifar100
+gpu=7
 
-# python train_search.py --save $save --gpu $gpu \
-# --batch_size 20 --unrolled --cutout \
-# --adv FGSM --nop --MGDA --constrain min
+python train_search.py --save $save --gpu $gpu \
+--batch_size 64 --unrolled --cutout --dataset cifar100
 
-# python copy_genotype.py --save $save
+python copy_genotype.py --save $save
 
 # python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
 # --batch_size 96 --init_channels 12
@@ -14,7 +13,7 @@ gpu=1
 # --batch_size 96 --init_channels 20
 
 python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
---batch_size 48 --init_channels 36
+--batch_size 96 --init_channels 36 --dataset cifar100
 
 # python test_adv.py --arch $save --batch_size 32 --gpu $gpu --auxiliary --cutout \
 # --attack PGD --init_channels 12 \

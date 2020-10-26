@@ -19,8 +19,7 @@ class Architect(object):
     self.model = model
     self.optimizer = torch.optim.Adam(self.model.arch_parameters(),
         lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
-    self.mgda = args.MGDA
-    self.grad_norm = args.grad_norm
+    self.args = args
 
   def _compute_unrolled_model(self, input, target, eta, network_optimizer):
     # loss on train data
@@ -37,10 +36,15 @@ class Architect(object):
     unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment+dtheta))
     return unrolled_model
 
-  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, C, constrain, constrain_size, entropy, lambda_entropy):
+  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, **kwargs): #C, constrain, constrain_size, entropy, lambda_entropy):
     self.optimizer.zero_grad()
     if unrolled:
-        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, constrain, constrain_size, entropy, lambda_entropy)
+      C = self.args.init_channels
+      constrain = self.args.constrain
+      constrain_size = self.args.constrain_size
+      entropy = self.args.entropy
+      lambda_entropy = 0.5
+      self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, constrain, constrain_size, entropy, lambda_entropy)
     else:
         self._backward_step(input_valid, target_valid)
     self.optimizer.step()
@@ -106,7 +110,7 @@ class Architect(object):
     # dalpha_param = [v.grad for v in unrolled_model.arch_parameters()]
     # ---- param loss ----
     
-    if self.grad_norm:
+    if self.args.grad_norm:
       gn = gradient_normalizers(grads, loss_data, normalization_type='l2') # loss+, loss, l2
     else:
       gn = gradient_normalizers(grads, loss_data, normalization_type='none')
@@ -116,7 +120,7 @@ class Architect(object):
         grads[t][gr_i] = grads[t][gr_i] / gn[t]
     
     # ---- MGDA -----
-    if self.mgda:
+    if self.args.MGDA:
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     else:
       sol = [1,1]

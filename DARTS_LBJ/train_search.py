@@ -16,12 +16,11 @@ import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from model_search import Network
 from architect import Architect
-# from architect_yzx import Architect
 
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
-parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'])
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
 parser.add_argument('--batch_size', type=int, default=8, help='batch size') # 64
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
@@ -47,7 +46,7 @@ parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 
 parser.add_argument('--epsilon', default=2, type=int)
 parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD free adversarial training')
 
-parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
+# parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
 parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
 parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
 parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
@@ -80,17 +79,22 @@ def main():
     logging.info("args = %s", args)
 
     if args.dataset == 'cifar10':
-        CIFAR_CLASSES = 10
+        class_num = 10
         train_transform, _ = utils._data_transforms_cifar10(args)
         train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
     elif args.dataset == 'cifar100':
-        CIFAR_CLASSES = 100
+        class_num = 100
         train_transform, _ = utils._data_transforms_cifar100(args)
         train_data = dset.CIFAR100(root=args.data, train=True, download=True, transform=train_transform)
+    elif args.dataset == 'svhn':
+        class_num = 10
+        train_transform, _ = utils._data_transforms_svhn(args)
+        train_data = dset.SVHN(root=args.data, split='train', download=True, transform=train_transform)
+
 
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.cuda()
-    model = Network(args.init_channels, CIFAR_CLASSES, args.layers, criterion)
+    model = Network(args.init_channels, class_num, args.layers, criterion)
     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
@@ -119,11 +123,11 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, float(args.epochs), eta_min=args.learning_rate_min)
 
-    architect = Architect(model, args)
-
     if args.adv == 'PGD':
         args.epochs = int(args.epochs / args.step_num)
         print('free PGD adversarial training for {} epoch'.format(args.epochs))
+
+    architect = Architect(model, args)
 
     for epoch in range(args.epochs):
         scheduler.step()
@@ -160,6 +164,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     elif args.dataset == 'cifar100':
         mean = (0.5071, 0.4867, 0.4408)
         std = (0.2675, 0.2565, 0.2761)
+    elif args.dataset == 'svhn':
+        mean = (0.4377, 0.4438, 0.4728)
+        std = (0.1980, 0.2010, 0.1970)
 
     mean = torch.FloatTensor(mean).view(3,1,1)
     std = torch.FloatTensor(std).view(3,1,1)
@@ -179,14 +186,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
 
-        if args.nop:
-            # architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
-         
-            lambda_entropy = 0.5
-            architect.step(input1, target, input_search, target_search, lr, optimizer, 
-                            constrain=args.constrain, constrain_size=args.constrain_size, entropy=args.entropy, lambda_entropy=lambda_entropy, unrolled=args.unrolled, C=args.init_channels)
-        else:
-            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
