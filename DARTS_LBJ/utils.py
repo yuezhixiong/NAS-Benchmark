@@ -58,6 +58,22 @@ class Cutout(object):
         img *= mask
         return img
 
+def _data_transforms(args, mean, std):
+
+  train_transform = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(mean, std),
+  ])
+  if args.cutout:
+    train_transform.transforms.append(Cutout(args.cutout_length))
+
+  valid_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean, std),
+    ])
+  return train_transform, valid_transform
 
 def _data_transforms_cifar10(args):
   CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
@@ -113,6 +129,28 @@ def _data_transforms_svhn(args):
   valid_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(SVHN_MEAN, SVHN_STD),
+    ])
+  return train_transform, valid_transform
+
+# https://github.com/pytorch/examples/blob/master/imagenet/main.py
+def _data_transforms_imagenet(args):
+  IMAGENET_MEAN = [0.485, 0.456, 0.406]
+  IMAGENET_STD = [0.229, 0.224, 0.225]
+
+  train_transform = transforms.Compose([
+    transforms.RandomResizedCrop(224),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+  ])
+  if args.cutout:
+    train_transform.transforms.append(Cutout(args.cutout_length))
+
+  valid_transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
   return train_transform, valid_transform
 

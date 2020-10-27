@@ -20,7 +20,7 @@ from architect import Architect
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
-parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn', 'imagenet'])
 parser.add_argument('--batch_size', type=int, default=8, help='batch size') # 64
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
@@ -90,6 +90,11 @@ def main():
         class_num = 10
         train_transform, _ = utils._data_transforms_svhn(args)
         train_data = dset.SVHN(root=args.data, split='train', download=True, transform=train_transform)
+    elif args.dataset == 'imagenet':
+        class_num = 1000
+        train_transform, _ = utils._data_transforms_imagenet(args)
+        imagenet_train_dir = '/data/dataset/imagenet/ILSVRC2012_img_train_caffemapping/'
+        train_data = dset.ImageFolder(imagenet_train_dir, transform=train_transform)
 
 
     criterion = nn.CrossEntropyLoss()
@@ -167,6 +172,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     elif args.dataset == 'svhn':
         mean = (0.4377, 0.4438, 0.4728)
         std = (0.1980, 0.2010, 0.1970)
+    elif args.dataset == 'imagenet':
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
 
     mean = torch.FloatTensor(mean).view(3,1,1)
     std = torch.FloatTensor(std).view(3,1,1)
