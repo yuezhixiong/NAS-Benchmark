@@ -140,7 +140,7 @@ def main():
   architect = Architect(model, args)
 
   for epoch in range(args.epochs):
-    scheduler.step()
+    
     lr = scheduler.get_lr()[0]
     logging.info('epoch %d lr %e', epoch, lr)
 
@@ -162,6 +162,7 @@ def main():
       logging.info('valid_acc %f', valid_acc)
 
     utils.save(model, os.path.join(args.save, 'weights.pt'))
+    scheduler.step()
 
 
 def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,epoch):
