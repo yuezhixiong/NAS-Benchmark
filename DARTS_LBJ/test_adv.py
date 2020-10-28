@@ -18,7 +18,7 @@ from model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
-parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'])
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
 parser.add_argument('--batch_size', type=int, default=1, help='batch size')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
@@ -57,16 +57,26 @@ def main():
   logging.info("args = %s", args)
 
   if args.dataset == 'cifar10':
-    CIFAR_CLASSES = 10
+    class_num = 10
+    mean = (0.4914, 0.4822, 0.4465)
+    std = (0.2471, 0.2435, 0.2616)
     _, valid_transform = utils._data_transforms_cifar10(args)
     test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
   elif args.dataset == 'cifar100':
-    CIFAR_CLASSES = 100
+    class_num = 100
+    mean = (0.5071, 0.4867, 0.4408)
+    std = (0.2675, 0.2565, 0.2761)
     _, valid_transform = utils._data_transforms_cifar100(args)
     test_data = dset.CIFAR100(root=args.data, train=False, download=True, transform=valid_transform)
+  elif args.dataset == 'svhn':
+    class_num = 10 
+    mean = (0.4377, 0.4438, 0.4728)
+    std = (0.1980, 0.2010, 0.1970)
+    _, valid_transform = utils._data_transforms_svhn(args)
+    test_data = dset.SVHN(root=args.data, split='test', download=True, transform=valid_transform)
 
   genotype = eval("genotypes.%s" % args.arch)
-  model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
+  model = Network(args.init_channels, class_num, args.layers, args.auxiliary, genotype)
   model = model.cuda()
   utils.load(model, args.model_path)
 
@@ -83,13 +93,6 @@ def main():
 
   model.drop_path_prob = 0
   
-  if args.dataset == 'cifar10':
-    mean = (0.4914, 0.4822, 0.4465)
-    std = (0.2471, 0.2435, 0.2616)
-  elif args.dataset == 'cifar100':
-    mean = (0.5071, 0.4867, 0.4408)
-    std = (0.2675, 0.2565, 0.2761)
-
   mean = torch.FloatTensor(mean).view(3,1,1)
   std = torch.FloatTensor(std).view(3,1,1)
   upper_limit = ((1 - mean)/ std).cuda()
