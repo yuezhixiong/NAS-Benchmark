@@ -94,6 +94,7 @@ def main():
   #   print(name, np.prod(v.size()))
 
   logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
+  # exit()
 
   criterion = nn.CrossEntropyLoss()
   criterion = criterion.cuda()

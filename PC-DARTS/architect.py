@@ -17,6 +17,7 @@ class Architect(object):
     self.model = model
     self.optimizer = torch.optim.Adam(self.model.arch_parameters(),
         lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
+    self.args = args
 
   def _compute_unrolled_model(self, input, target, eta, network_optimizer):
     loss = self.model._loss(input, target)
@@ -41,7 +42,7 @@ class Architect(object):
     loss = self.model._loss(input_valid, target_valid)
     loss.backward()
 
-  def param_number(self, unrolled_model, max_constraint, max_size):
+  def param_number(self, unrolled_model):
     def compute_u(C, is_reduction):
       a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
 #       u = torch.from_numpy(np.repeat(a, 14, axis=1))
@@ -60,57 +61,68 @@ class Architect(object):
         alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
         u = compute_u(C_list[i], is_reduction=False)
       loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
-    if max_constraint:
-      return torch.max(1, loss-max_size)[0]
+    if self.args.constrain=='max':
+      # print(loss-constrain_size) # torch.cuda.FloatTensor 
+      return torch.max(Variable(torch.ones(1)).cuda(), loss-self.args.constrain_size)[0]
+    elif self.args.constrain=='min':
+      return torch.max(Variable(torch.ones(1)).cuda(), self.args.constrain_size-loss)[0]
     else:
       return loss
 
-  def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, max_constraint, max_size, entropy, lambda_entropy):
+  def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
     self.optimizer.zero_grad()
     grads = {}
     loss_data = {}
     unrolled_model = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
-    if entropy:
-      entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
-                    (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
-      unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
+    # if entropy:
+    #   entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
+    #                 (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
+    #   unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
     loss_data['darts'] = unrolled_loss.data[0]
     unrolled_loss.backward()
 
     # ---- MGDA -----
-    grads['darts'] = []
-    for param in unrolled_model.arch_parameters():
-      if param.grad is not None:
-          grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
+    if not self.args.original:
+      grads['darts'] = []
+      for param in unrolled_model.arch_parameters():
+        if param.grad is not None:
+            grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
 
-    # ---- param loss ----
-    self.optimizer.zero_grad()
-    param_loss = self.param_number(unrolled_model, max_constraint, max_size)
-    loss_data['param'] = param_loss.data[0]
-    param_loss.backward()
-    grads['param'] = []
-    for param in unrolled_model.arch_parameters():
-      if param.grad is not None:
-          grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
-            
-    gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
-    for t in ['darts', 'param']:
-      for gr_i in range(len(grads[t])):
-        grads[t][gr_i] = grads[t][gr_i] / gn[t]
+      # ---- param loss ----
+      self.optimizer.zero_grad()
+      param_loss = self.param_number(unrolled_model, self.args.constraint, self.args.constraint_size)
+      loss_data['param'] = param_loss.data[0]
+      param_loss.backward()
+      grads['param'] = []
+      for param in unrolled_model.arch_parameters():
+        if param.grad is not None:
+            grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
+              
+      # gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
+      if self.args.grad_norm:
+        gn = gradient_normalizers(grads, loss_data, normalization_type='l2') # loss+, loss, l2
+      else:
+        gn = gradient_normalizers(grads, loss_data, normalization_type='none')
+      for t in ['darts', 'param']:
+        for gr_i in range(len(grads[t])):
+          grads[t][gr_i] = grads[t][gr_i] / gn[t]
 
-#     print('+'*5, grads)
-    sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
-    unrolled_loss = unrolled_model._loss(input_valid, target_valid)
-    if entropy:
-      entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
-                    (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
-      unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
-    param_loss = self.param_number(unrolled_model, max_constraint, max_size)
-    # print('-'*5, sol)
-    loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
-    self.optimizer.zero_grad()
-    loss.backward()
+  #     print('+'*5, grads)
+      if self.args.MGDA:
+        sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+      else:
+        sol = [1, 1]
+      unrolled_loss = unrolled_model._loss(input_valid, target_valid)
+      # if entropy:
+      #   entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
+      #                 (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
+      #   unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
+      param_loss = self.param_number(unrolled_model, self.args.constraint, self.args.constraint_size)
+      # print('-'*5, sol)
+      loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
+      self.optimizer.zero_grad()
+      loss.backward()
     # ---- MGDA -----
 
     dalpha = [v.grad for v in unrolled_model.arch_parameters()]
@@ -157,4 +169,3 @@ class Architect(object):
       p.data.add_(R, v)
 
     return [(x-y).div_(2*R) for x, y in zip(grads_p, grads_n)]
-

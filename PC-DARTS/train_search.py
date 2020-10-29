@@ -42,6 +42,15 @@ parser.add_argument('--train_portion', type=float, default=0.5, help='portion of
 parser.add_argument('--unrolled', action='store_true', default=True, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
+
+# parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
+parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
+parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
+parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
+parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
+parser.add_argument('--original', default=False, action='store_true', help='original version')
+parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--fgsm', default=False, action='store_true', help='use fgsm adversarial training')
 args = parser.parse_args()
 
 #args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -164,16 +173,6 @@ def main():
     utils.save(model, os.path.join(args.save, 'weights.pt'))
 
 
-# add cifar10 constant
-cifar10_mean = (0.4914, 0.4822, 0.4465)
-cifar10_std = (0.2471, 0.2435, 0.2616)
-CIFAR_CLASSES = 10
-std = torch.FloatTensor(cifar10_std).view(3,1,1)
-mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
-std = torch.FloatTensor(cifar10_std).view(3,1,1)
-upper_limit = ((1 - mu)/ std)
-lower_limit = ((0 - mu)/ std)
-
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
 
@@ -198,32 +197,40 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
     input_search = Variable(input_search, requires_grad=False).cuda()
     target_search = Variable(target_search, requires_grad=False).cuda()
 
-    if epoch>=15:
-      # print('testing epoch>15')
+    # if epoch>=15:
+    if True:
+      print('testing epoch>15')
       # architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
       architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, max_constraint, max_size, entropy, lambda_entropy)
-
-    input = Variable(input, requires_grad=True).cuda()
-    epsilon = (8 / 255.) / std
-    epsilon = epsilon.cuda()
-    alpha = (10 / 255.) / std
-    alpha = alpha.cuda()
 
     optimizer.zero_grad()
     logits = model(input)
     loss = criterion(logits, target)
 
-    loss.backward(retain_graph=True)
-    grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0]
-    grad = grad.detach().data
+    if args.fgsm:
+      input.requires_grad = True
 
-    delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
-    delta = clamp(delta, lower_limit.cuda() - input.data, upper_limit.cuda() - input.data)
-    adv_input = Variable(input.data + delta, requires_grad=False).cuda()
-    output = model(adv_input)
-    
-    logits = model(input)
-    loss = 0.5 * criterion(logits, target) + 0.5 * criterion(output, target)
+      mean = (0.4914, 0.4822, 0.4465)
+      std = (0.2471, 0.2435, 0.2616)
+      mean = torch.FloatTensor(mean).view(3,1,1)
+      std = torch.FloatTensor(std).view(3,1,1)
+      upper_limit = ((1 - mean)/ std).cuda()
+      lower_limit = ((0 - mean)/ std).cuda()
+
+      epsilon = ((args.epsilon / 255.) / std).cuda()
+      alpha = epsilon * 1.25
+      delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
+
+      loss.backward(retain_graph=True)
+      grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
+      
+      delta = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+      delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
+      adv_input = Variable(input.data + delta, requires_grad=False).cuda()
+      logits_adv = model(adv_input)  
+
+      loss = criterion(logits_adv, target)      
+
     loss.backward()
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
     optimizer.step()

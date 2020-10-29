@@ -25,7 +25,7 @@ from torch.autograd import Variable
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
-parser.add_argument('--workers', type=int, default=2, help='number of workers to load dataset')
+parser.add_argument('--workers', type=int, default=2, help='number of workers to load ifdataset')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.0, help='min learning rate')
@@ -51,9 +51,16 @@ parser.add_argument('--dropout_rate', action='append', default=[], help='dropout
 parser.add_argument('--add_width', action='append', default=['0'], help='add channels')
 parser.add_argument('--add_layers', action='append', default=['0'], help='add layers')
 
+parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
+parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
+parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
+parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
+parser.add_argument('--original', default=False, action='store_true', help='original version')
+parser.add_argument('--fgsm', default=False, action='store_true', help='use fgsm adversarial training')
+parser.add_argument('--epsilon', default=2, type=int)
 args = parser.parse_args()
 
-#utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -186,7 +193,8 @@ def main():
             if epoch < eps_no_arch:
                 model.p = float(drop_rate[sp]) * (epochs - epoch - 1) / epochs
                 model.update_p()
-                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
+                # train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
+                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, args, train_arch=False)
             else:
                 model.p = float(drop_rate[sp]) * np.exp(-(epoch - eps_no_arch) * scale_factor) 
                 model.update_p()                
@@ -295,20 +303,10 @@ def main():
         f.write(str(genotype))
               
 
-# add cifar10 constant
-cifar10_mean = (0.4914, 0.4822, 0.4465)
-cifar10_std = (0.2471, 0.2435, 0.2616)
-CIFAR_CLASSES = 10
-std = torch.FloatTensor(cifar10_std).view(3,1,1)
-mu = torch.FloatTensor(cifar10_mean).view(3,1,1)
-std = torch.FloatTensor(cifar10_std).view(3,1,1)
-upper_limit = ((1 - mu)/ std)
-lower_limit = ((0 - mu)/ std)
-
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
 
-def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, max_constraint, max_size, entropy, lambda_entropy, train_arch=True):
+def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, args, train_arch=True):
 # def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
@@ -320,9 +318,9 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
         input = input.cuda()
         target = target.cuda()
 #         target = target.cuda(async=True)
-        if train_arch:
-        # if True:
-        #     print('warning if True rather than if train_arch')
+        # if train_arch:
+        if True:
+            print('warning if True rather than if train_arch')
             # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
             # the training when using PyTorch 0.4 and above. 
             try:
@@ -336,72 +334,89 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
             optimizer_a.zero_grad()
             logits = model(input_search)
             loss_a = criterion(logits, target_search)
-            if entropy:
-                entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
-                            (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
-                loss_a = loss_a + lambda_entropy * entropy_loss
-                        loss_data['darts'] = loss_a.item()
+            # if entropy:
+            #     entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
+            #                 (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
+            #     loss_a = loss_a + lambda_entropy * entropy_loss
+            loss_data['darts'] = loss_a.item()
             loss_a.backward()
 
-            # ---- MGDA ----
-            grads = {}
-            grads['darts'] = []
-            # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
-            for param in model.arch_parameters():
-                if param.grad is not None:
-                    grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
+            if not args.original:
+                # ---- MGDA ----
+                grads = {}
+                grads['darts'] = []
+                # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
+                for param in model.arch_parameters():
+                    if param.grad is not None:
+                        grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
 
-            optimizer_a.zero_grad()
-            param_loss = model.param_number()
-            param_loss = model.param_number(max_constraint, max_size)
-            loss_data['param'] = param_loss.item()
-            param_loss.backward()
-            grads['param'] = []
-            for param in model.arch_parameters():
-                if param.grad is not None:
-                    grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
-                    
-            gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
-            for t in ['darts', 'param']:
-                for gr_i in range(len(grads[t])):
-                    grads[t][gr_i] = grads[t][gr_i] / gn[t]
+                optimizer_a.zero_grad()
+                param_loss = model.param_number(args.constraint, args.constrain_size)
+                loss_data['param'] = param_loss.item()
+                param_loss.backward()
+                grads['param'] = []
+                for param in model.arch_parameters():
+                    if param.grad is not None:
+                        grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
 
-            optimizer_a.zero_grad()
-            sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
-#             print('-'*8, sol)
-            logits = model(input_search)
-            loss_a = criterion(logits, target_search)
-            if entropy:
-                entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
-                            (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
-                loss_a = loss_a + lambda_entropy * entropy_loss
-            param_loss = model.param_number(max_constraint, max_size)
-            loss = sol[0] * loss_a + sol[1] * param_loss
-            loss.backward()
+                # gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
+                if args.grad_norm:
+                    gn = gradient_normalizers(grads, loss_data, normalization_type='l2') # loss+, loss, l2
+                else:
+                    gn = gradient_normalizers(grads, loss_data, normalization_type='none')
+                for t in ['darts', 'param']:
+                    for gr_i in range(len(grads[t])):
+                        grads[t][gr_i] = grads[t][gr_i] / gn[t]
+
+                optimizer_a.zero_grad()
+                if args.MGDA:
+                    sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+                else:
+                    sol = [1, 1]
+    #             print('-'*8, sol)
+                logits = model(input_search)
+                loss_a = criterion(logits, target_search)
+                # if entropy:
+                #     entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
+                #                 (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
+                #     loss_a = loss_a + lambda_entropy * entropy_loss
+                param_loss = model.param_number(args.constraint, args.constrain_size)
+                loss = sol[0] * loss_a + sol[1] * param_loss
+                loss.backward()
+
             optimizer_a.step()
 
             # ---- MGDA ----
-
-        #adv
-        input.requires_grad = True
-        # print(input.requires_grad)
-        epsilon = (8 / 255.) / std
-        epsilon = epsilon.cuda()
-        alpha = (10 / 255.) / std
-        alpha = alpha.cuda()
 
         optimizer.zero_grad()
         logits = model(input)
         loss = criterion(logits, target)
 
-        loss.backward(retain_graph=True)
-        grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach()
-        delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
-        delta = clamp(delta, lower_limit.cuda() - input, upper_limit.cuda() - input)
-        adv_input = (input + delta).cuda()
-        adv_logits = model(adv_input)
-        loss = 0.5 * criterion(logits, target) + 0.5 * criterion(adv_logits, target)
+        if args.fgsm:
+            input.requires_grad = True
 
+            mean = (0.4914, 0.4822, 0.4465)
+            std = (0.2471, 0.2435, 0.2616)
+            mean = torch.FloatTensor(mean).view(3,1,1)
+            std = torch.FloatTensor(std).view(3,1,1)
+            upper_limit = ((1 - mean)/ std).cuda()
+            lower_limit = ((0 - mean)/ std).cuda()
+
+            epsilon = ((args.epsilon / 255.) / std).cuda()
+            alpha = epsilon * 1.25
+            delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
+
+            loss.backward(retain_graph=True)
+            grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
+            
+            delta = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+            delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
+            adv_input = Variable(input.data + delta, requires_grad=False).cuda()
+            logits_adv = model(adv_input)  
+
+            loss = criterion(logits_adv, target)
+
+        loss.backward()
         nn.utils.clip_grad_norm_(network_params, args.grad_clip)
         optimizer.step()
 
