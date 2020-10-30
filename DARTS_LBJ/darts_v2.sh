@@ -1,5 +1,5 @@
 save=DARTS_V2
-gpu=1
+gpu=3
 
 # python train_search.py --save $save --gpu $gpu \
 # --batch_size 20 --unrolled --cutout \
@@ -7,11 +7,20 @@ gpu=1
 
 # python copy_genotype.py --save $save
 
-python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
---batch_size 96 --init_channels 9
+# python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
+# --batch_size 96 --init_channels 9
+
+# python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
+# --batch_size 96 --init_channels 12
+
+# python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
+# --batch_size 96 --init_channels 15
 
 # python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
 # --batch_size 96 --init_channels 20
+
+python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
+--batch_size 96 --init_channels 28
 
 # python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
 # --batch_size 48 --init_channels 36
