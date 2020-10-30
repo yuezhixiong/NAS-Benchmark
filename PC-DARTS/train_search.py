@@ -197,18 +197,18 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
     input_search = Variable(input_search, requires_grad=False).cuda()
     target_search = Variable(target_search, requires_grad=False).cuda()
 
-    # if epoch>=15:
-    if True:
-      print('testing epoch>15')
+    if epoch>=15:
+    # if True:
+    #   print('warning if True rather than epoch>15')
       # architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
-      architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, max_constraint, max_size, entropy, lambda_entropy)
+      architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
     optimizer.zero_grad()
-    logits = model(input)
+    logits = model(input1)
     loss = criterion(logits, target)
 
     if args.fgsm:
-      input.requires_grad = True
+      input = Variable(input, requires_grad=True).cuda()
 
       mean = (0.4914, 0.4822, 0.4465)
       std = (0.2471, 0.2435, 0.2616)

@@ -10,12 +10,25 @@ gpu=4
 # python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
 # --batch_size 96 --init_channels 16
 
-python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
---batch_size 96 --init_channels 25
+# python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
+# --batch_size 96 --init_channels 25
+
+python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
+--attack FGSM --init_channels 25 \
+--model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min/auxiliary0.4_cutout16_batchsize96_channel25_cifar10/best_model.pt"
+
+python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
+--attack PGD --init_channels 25 \
+--model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min/auxiliary0.4_cutout16_batchsize96_channel25_cifar10/best_model.pt"
+
 
 # python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
-# --attack FGSM --init_channels 36 \
-# --model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min/auxiliary0.4_cutout16_batchsize96_channel36_cifar10/best_model.pt"
+# --attack FGSM --init_channels 16 \
+# --model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min/auxiliary0.4_cutout16_batchsize96_channel16_cifar10/best_model.pt"
+
+# python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
+# --attack PGD --init_channels 16 \
+# --model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min/auxiliary0.4_cutout16_batchsize96_channel16_cifar10/best_model.pt"
 
 # python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
 # --attack PGD --init_channels 36 \

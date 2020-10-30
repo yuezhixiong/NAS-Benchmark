@@ -30,10 +30,10 @@ class Architect(object):
     unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment+dtheta))
     return unrolled_model
 
-  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, max_constraint, max_size, entropy, lambda_entropy):
+  def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled):
     self.optimizer.zero_grad()
     if unrolled:
-        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, max_constraint, max_size, entropy, lambda_entropy)
+        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
     else:
         self._backward_step(input_valid, target_valid)
     self.optimizer.step()
@@ -91,7 +91,7 @@ class Architect(object):
 
       # ---- param loss ----
       self.optimizer.zero_grad()
-      param_loss = self.param_number(unrolled_model, self.args.constraint, self.args.constraint_size)
+      param_loss = self.param_number(unrolled_model)
       loss_data['param'] = param_loss.data[0]
       param_loss.backward()
       grads['param'] = []
@@ -118,7 +118,7 @@ class Architect(object):
       #   entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
       #                 (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
       #   unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
-      param_loss = self.param_number(unrolled_model, self.args.constraint, self.args.constraint_size)
+      param_loss = self.param_number(unrolled_model)
       # print('-'*5, sol)
       loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
       self.optimizer.zero_grad()

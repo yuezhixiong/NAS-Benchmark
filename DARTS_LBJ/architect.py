@@ -132,7 +132,9 @@ class Architect(object):
       unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
     param_loss = self.param_number(unrolled_model, C, constrain, constrain_size)
     # print('-'*10, sol)
-    loss = float(sol[0]) * unrolled_loss + float(sol[1]) * param_loss
+    loss = float(sol[0]) * unrolled_loss
+    if self.args.nop:
+      loss = loss + float(sol[1]) * param_loss
     self.optimizer.zero_grad()
     loss.backward()
     # ---- MGDA -----

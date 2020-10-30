@@ -46,7 +46,7 @@ parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 
 parser.add_argument('--epsilon', default=2, type=int)
 parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD free adversarial training')
 
-# parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
+parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
 parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
 parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
 parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')

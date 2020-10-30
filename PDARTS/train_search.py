@@ -60,7 +60,7 @@ parser.add_argument('--fgsm', default=False, action='store_true', help='use fgsm
 parser.add_argument('--epsilon', default=2, type=int)
 args = parser.parse_args()
 
-utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+# utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -198,7 +198,7 @@ def main():
             else:
                 model.p = float(drop_rate[sp]) * np.exp(-(epoch - eps_no_arch) * scale_factor) 
                 model.update_p()                
-                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True)
+                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, args, train_arch=True)
             logging.info('Train_acc %f', train_acc)
             epoch_duration = time.time() - epoch_start
             logging.info('Epoch time: %ds', epoch_duration)
@@ -318,9 +318,9 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
         input = input.cuda()
         target = target.cuda()
 #         target = target.cuda(async=True)
-        # if train_arch:
-        if True:
-            print('warning if True rather than if train_arch')
+        if train_arch:
+        # if True:
+        #     print('warning if True rather than if train_arch')
             # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
             # the training when using PyTorch 0.4 and above. 
             try:
@@ -351,7 +351,7 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
                         grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
 
                 optimizer_a.zero_grad()
-                param_loss = model.param_number(args.constraint, args.constrain_size)
+                param_loss = model.param_number(args.constrain, args.constrain_size)
                 loss_data['param'] = param_loss.item()
                 param_loss.backward()
                 grads['param'] = []
@@ -380,7 +380,7 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
                 #     entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
                 #                 (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
                 #     loss_a = loss_a + lambda_entropy * entropy_loss
-                param_loss = model.param_number(args.constraint, args.constrain_size)
+                param_loss = model.param_number(args.constrain, args.constrain_size)
                 loss = sol[0] * loss_a + sol[1] * param_loss
                 loss.backward()
 

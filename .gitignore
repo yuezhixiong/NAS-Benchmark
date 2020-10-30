@@ -7,3 +7,5 @@ DARTS_LBJ/*-EXP-*
 DARTS_LBJ/search-*
 
 *.ipynb
+
+*.pdf
