@@ -41,7 +41,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-#args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.model_path = '{}/{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
 #utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -80,12 +80,12 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
     
-  f = open(os.path.join(args.save, 'best_genotype.txt'))
-  f_list = f.readlines()
-  f.close()
-  f = open('./genotypes.py', 'a')
-  f.write(args.arch+' = '+f_list[0]+'\n')
-  f.close()
+  # f = open(os.path.join(args.save, 'best_genotype.txt'))
+  # f_list = f.readlines()
+  # f.close()
+  # f = open('./genotypes.py', 'a')
+  # f.write(args.arch+' = '+f_list[0]+'\n')
+  # f.close()
 
   genotype = eval("genotypes.%s" % args.arch)
     

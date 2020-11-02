@@ -43,7 +43,7 @@ parser.add_argument('--gpu', type=int, default=3, help='GPU device id')
 parser.add_argument('--model_path', type=str, default='adv_nop_train', help='path to save the model')
 
 args, unparsed = parser.parse_known_args()
-
+args.model_path = '{}/{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
 #utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -93,12 +93,12 @@ def main():
     logging.info("unparsed args = %s", unparsed)
     # num_gpus = torch.cuda.device_count()
     
-    f = open(os.path.join(args.save, 'best_genotype.txt'))
-    f_list = f.readlines()
-    f.close()
-    f = open('./genotypes.py', 'a')
-    f.write(args.arch+' = '+f_list[0]+'\n')
-    f.close()
+    # f = open(os.path.join(args.save, 'best_genotype.txt'))
+    # f_list = f.readlines()
+    # f.close()
+    # f = open('./genotypes.py', 'a')
+    # f.write(args.arch+' = '+f_list[0]+'\n')
+    # f.close()
     
     genotype = eval("genotypes.%s" % args.arch)
     print('---------Genotype---------')

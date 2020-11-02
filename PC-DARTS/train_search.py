@@ -221,6 +221,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
       alpha = epsilon * 1.25
       delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
 
+      loss = criterion(model(input), target)
       loss.backward(retain_graph=True)
       grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
       

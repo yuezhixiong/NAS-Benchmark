@@ -185,7 +185,7 @@ def main():
         eps_no_arch = eps_no_archs[sp]
         scale_factor = 0.2
         for epoch in range(epochs):
-            scheduler.step()
+            # scheduler.step()
             lr = scheduler.get_lr()[0]
             logging.info('Epoch: %d lr: %e', epoch, lr)
             epoch_start = time.time()
@@ -206,6 +206,7 @@ def main():
             if epochs - epoch < 5:
                 valid_acc, valid_obj = infer(valid_queue, model, criterion)
                 logging.info('Valid_acc %f', valid_acc)
+            scheduler.step()
         utils.save(model, os.path.join(args.save, 'weights.pt'))
         print('------Dropping %d paths------' % num_to_drop[sp])
         # Save switches info for s-c refinement. 
@@ -406,6 +407,7 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
             alpha = epsilon * 1.25
             delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
 
+            loss = criterion(model(input), target)
             loss.backward(retain_graph=True)
             grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
             

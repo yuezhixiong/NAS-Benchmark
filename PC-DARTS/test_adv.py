@@ -18,6 +18,7 @@ from model import NetworkCIFAR as Network
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
 parser.add_argument('--batch_size', type=int, default=1, help='batch size')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
@@ -32,15 +33,13 @@ parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
 parser.add_argument('--attack', type=str, default='FGSM', help='which attack to use')
 
-parser.add_argument('--epsilon', default=8, type=int)
-parser.add_argument('--alpha', default=0.8, type=float, help='Step size')
+parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--step_num', default=10, type=int, help='Step number of PGD attack')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
     format=log_format, datefmt='%m/%d %I:%M:%S %p')
-
-CIFAR_CLASSES = 10
 
 
 def main():
@@ -57,8 +56,27 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
+  if args.dataset == 'cifar10':
+    class_num = 10
+    mean = (0.4914, 0.4822, 0.4465)
+    std = (0.2471, 0.2435, 0.2616)
+    _, valid_transform = utils._data_transforms_cifar10(args)
+    test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
+  elif args.dataset == 'cifar100':
+    class_num = 100
+    mean = (0.5071, 0.4867, 0.4408)
+    std = (0.2675, 0.2565, 0.2761)
+    _, valid_transform = utils._data_transforms_cifar100(args)
+    test_data = dset.CIFAR100(root=args.data, train=False, download=True, transform=valid_transform)
+  elif args.dataset == 'svhn':
+    class_num = 10 
+    mean = (0.4377, 0.4438, 0.4728)
+    std = (0.1980, 0.2010, 0.1970)
+    _, valid_transform = utils._data_transforms_svhn(args)
+    test_data = dset.SVHN(root=args.data, split='test', download=True, transform=valid_transform)
+
   genotype = eval("genotypes.%s" % args.arch)
-  model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
+  model = Network(args.init_channels, class_num, args.layers, args.auxiliary, genotype)
   model = model.cuda()
   utils.load(model, args.model_path)
 
@@ -67,37 +85,32 @@ def main():
   criterion = nn.CrossEntropyLoss()
   criterion = criterion.cuda()
 
-  _, test_transform = utils._data_transforms_cifar10(args)
-  test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=test_transform)
+  # _, test_transform = utils._data_transforms_cifar10(args)
+  # test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=test_transform)
 
   test_queue = torch.utils.data.DataLoader(
       test_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=1)
 
   model.drop_path_prob = 0
   
+  mean = torch.FloatTensor(mean).view(3,1,1)
+  std = torch.FloatTensor(std).view(3,1,1)
+  upper_limit = ((1 - mean)/ std).cuda()
+  lower_limit = ((0 - mean)/ std).cuda()
+  epsilon = ((args.epsilon / 255.) / std).cuda()
+  step_size = 2.5 * epsilon / args.step_num
+
   print('using {} attack'.format(args.attack))
   if args.attack == 'FGSM':
-      test_adv_acc = test_FGSM(model, test_queue)
+      test_adv_acc = test_FGSM(model, test_queue, upper_limit, lower_limit, epsilon)
   elif args.attack == 'PGD':  
-      test_adv_acc = test_PGD(model, test_queue)
+      test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit, epsilon, step_size)
   logging.info('test_adv_acc %f', test_adv_acc)
 
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
 
-def test_FGSM(net, testloader):
-    cifar10_mean = (0.4914, 0.4822, 0.4465)
-    cifar10_std = (0.2471, 0.2435, 0.2616)
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
-    mu = torch.FloatTensor(cifar10_mean).view(3,1,1).cuda()
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
-    upper_limit = ((1 - mu)/ std)
-    lower_limit = ((0 - mu)/ std)
-
-    epsilon = (args.epsilon / 255.) / std
-    epsilon = epsilon.cuda()
-    alpha = (args.alpha / 255.) / std
-    alpha = alpha.cuda()
+def test_FGSM(net, testloader, upper_limit, lower_limit, epsilon):
 
     net.eval()
     criterion = nn.CrossEntropyLoss().cuda()
@@ -113,7 +126,7 @@ def test_FGSM(net, testloader):
         grad = torch.autograd.grad(loss, images, 
                                    retain_graph=False, create_graph=False)[0]
         grad = grad.detach().data
-        delta = clamp(alpha * torch.sign(grad), -epsilon, epsilon)
+        delta = clamp(epsilon * torch.sign(grad), -epsilon, epsilon)
         delta = clamp(delta, lower_limit.cuda() - images.data, upper_limit.cuda() - images.data)
         adv_input = Variable(images.data + delta, requires_grad=False).cuda()
 
@@ -129,19 +142,7 @@ def test_FGSM(net, testloader):
     
     return acc
 
-def test_PGD(net, testloader, step_num=10):
-    cifar10_mean = (0.4914, 0.4822, 0.4465)
-    cifar10_std = (0.2471, 0.2435, 0.2616)
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
-    mu = torch.FloatTensor(cifar10_mean).view(3,1,1).cuda()
-    std = torch.FloatTensor(cifar10_std).view(3,1,1).cuda()
-    upper_limit = ((1 - mu)/ std).cuda()
-    lower_limit = ((0 - mu)/ std).cuda()
-
-    epsilon = (args.epsilon / 255.) / std
-    epsilon = epsilon.cuda()
-    alpha = (args.alpha / 255.) / std
-    alpha = alpha.cuda()
+def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
 
     net.eval()
     criterion = nn.CrossEntropyLoss().cuda()
@@ -153,14 +154,14 @@ def test_PGD(net, testloader, step_num=10):
         adv_input = Variable(images, requires_grad=True).cuda()
         # print(images.min(),images.max())
 
-        for i in range(step_num):
+        for i in range(args.step_num):
           logits, _ = net(adv_input)
           loss = criterion(logits, labels)
           loss.backward(retain_graph=True)
           grad = torch.autograd.grad(loss, adv_input, 
                                     retain_graph=False, create_graph=False)[0]
           grad = grad.detach().data
-          adv_images = adv_input.detach().data + alpha * torch.sign(grad)
+          adv_images = adv_input.detach().data + step_size * torch.sign(grad)
           delta = clamp(adv_images - images, -epsilon, epsilon)
           adv_images = clamp(images + delta, lower_limit, upper_limit)
           adv_input = Variable(adv_images, requires_grad=True).cuda()
