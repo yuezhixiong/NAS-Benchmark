@@ -43,7 +43,7 @@ parser.add_argument('--gpu', type=int, default=3, help='GPU device id')
 parser.add_argument('--model_path', type=str, default='adv_nop_train', help='path to save the model')
 
 args, unparsed = parser.parse_known_args()
-args.model_path = '{}/{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.model_path = '{}/batchsize{}_channel{}'.format(args.save, args.batch_size, args.init_channels)
 #utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -154,7 +154,7 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     best_acc = 0.0
     for epoch in range(args.epochs):
-        scheduler.step()
+        # scheduler.step()
         logging.info('Epoch: %d lr %e', epoch, scheduler.get_lr()[0])
         # if num_gpus > 1:
         #     model.module.drop_path_prob = args.drop_path_prob * epoch / args.epochs
@@ -172,6 +172,7 @@ def main():
         duration = end_time - start_time
         print('Epoch time: %ds.' % duration )
         utils.save(model, os.path.join(args.model_path, 'weights.pt'))
+        scheduler.step()
 
 def train(train_queue, model, criterion, optimizer):
     objs = utils.AvgrageMeter()

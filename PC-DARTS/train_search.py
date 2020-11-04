@@ -204,8 +204,6 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
       architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
     optimizer.zero_grad()
-    logits = model(input1)
-    loss = criterion(logits, target)
 
     if args.fgsm:
       input = Variable(input, requires_grad=True).cuda()
@@ -229,8 +227,10 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
       delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
       adv_input = Variable(input.data + delta, requires_grad=False).cuda()
       logits_adv = model(adv_input)  
-
-      loss = criterion(logits_adv, target)      
+      loss = criterion(logits_adv, target)
+    else:
+      logits = model(input1)
+      loss = criterion(logits, target)
 
     loss.backward()
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)

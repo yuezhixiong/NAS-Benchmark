@@ -390,8 +390,6 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
             # ---- MGDA ----
 
         optimizer.zero_grad()
-        logits = model(input)
-        loss = criterion(logits, target)
 
         if args.fgsm:
             input.requires_grad = True
@@ -415,8 +413,10 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
             delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
             logits_adv = model(adv_input)  
-
             loss = criterion(logits_adv, target)
+        else:
+            logits = model(input)
+            loss = criterion(logits, target)
 
         loss.backward()
         nn.utils.clip_grad_norm_(network_params, args.grad_clip)

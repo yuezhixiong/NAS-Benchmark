@@ -41,7 +41,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.model_path = '{}/{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.model_path = '{}/batchsize{}_channel{}_{}'.format(args.save, args.batch_size, args.init_channels, args.dataset)
 #utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
