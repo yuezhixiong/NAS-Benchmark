@@ -5,7 +5,9 @@ import shutil
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 
-
+def clamp(X, lower_limit, upper_limit):
+    return torch.max(torch.min(X, upper_limit), lower_limit)
+    
 class AvgrageMeter(object):
 
   def __init__(self):

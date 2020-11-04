@@ -52,6 +52,7 @@ parser.add_argument('--constrain', type=str, default='none', choices=['max', 'mi
 parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
+parser.add_argument('--outer', default=False, action='store_true', help='use adv in outer loop')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -180,7 +181,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     std = torch.FloatTensor(std).view(3,1,1)
     upper_limit = ((1 - mean)/ std).cuda()
     lower_limit = ((0 - mean)/ std).cuda()
-
+    epsilon = ((args.epsilon / 255.) / std).cuda()
 
     for step, (input, target) in enumerate(train_queue):
         model.train()
@@ -193,13 +194,15 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         input_search, target_search = next(iter(valid_queue))
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
-
-        architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        
+        if args.outer:
+            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit)
+        else:
+            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
 
-            epsilon = ((args.epsilon / 255.) / std).cuda()
             alpha = epsilon * 1.25
             delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
 
@@ -223,8 +226,6 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             # adv_input = Variable(input, requires_grad=True).cuda()
             input = input.cuda()
             
-            epsilon = ((args.epsilon / 255.) / std).cuda()
-
             delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
             # print(adv_input.size(),delta.size())
             adv_input = Variable(input + delta, requires_grad=True)
