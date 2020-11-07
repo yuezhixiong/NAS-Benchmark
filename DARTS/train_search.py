@@ -42,8 +42,9 @@ parser.add_argument('--train_portion', type=float, default=0.5, help='portion of
 parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD'], help='use FGSM/PGD advsarial training')
+parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD', 'fast'], help='use FGSM/PGD advsarial training')
 parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--inner_lambda', default=1, type=int)
 parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD free adversarial training')
 
 parser.add_argument('--nop_outer', default=False, action='store_true', help='optimize number of parameter')
@@ -53,6 +54,7 @@ parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain t
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
+
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -97,7 +99,6 @@ def main():
         imagenet_train_dir = '/data/dataset/imagenet/ILSVRC2012_img_train_caffemapping/'
         train_data = dset.ImageFolder(imagenet_train_dir, transform=train_transform)
 
-
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.cuda()
     model = Network(args.init_channels, class_num, args.layers, criterion)
@@ -109,7 +110,6 @@ def main():
             args.learning_rate,
             momentum=args.momentum,
             weight_decay=args.weight_decay)
-
 
 
     num_train = len(train_data)
@@ -208,13 +208,35 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             delta = utils.clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
             delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
-            logits_adv = model(adv_input)  
 
-            loss = criterion(logits_adv, target)
+            loss = args.inner_lambda * criterion(model(input), target) + criterion(model(adv_input), target)
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
             optimizer.step()
+
+        elif args.adv == 'fast':
+            input = Variable(input, requires_grad=True).cuda()
+
+            alpha = epsilon * 1.25
+            delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
+            delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
+            delta = Variable(delta, requires_grad=True).cuda()
+
+            logits = model(input + delta)
+            loss = criterion(logits, target)
+            loss.backward(retain_graph=True)
+            grad = torch.autograd.grad(loss, delta, retain_graph=False, create_graph=False)[0].detach().data
+            
+            delta = utils.clamp(delta.data + alpha * torch.sign(grad), -epsilon, epsilon)
+            delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
+            adv_input = Variable(input.data + delta, requires_grad=False).cuda()
+
+            loss = args.inner_lambda * criterion(model(input), target) + criterion(model(adv_input), target)
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+            optimizer.step()            
         
         elif args.adv == 'PGD':
             # adv_input = Variable(input, requires_grad=True).cuda()

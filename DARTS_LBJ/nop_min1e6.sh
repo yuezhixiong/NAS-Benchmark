@@ -1,11 +1,11 @@
 save=nop_min1e6
-gpu=7
+gpu=3
 
-python train_search.py --save $save --gpu $gpu \
---batch_size 64 --unrolled --cutout \
---nop --constrain min
+# python train_search.py --save $save --gpu $gpu \
+# --batch_size 64 --unrolled --cutout \
+# --nop --constrain min
 
-python copy_genotype.py --save $save
+# python copy_genotype.py --save $save
 
 python train.py --arch $save --save $save --gpu $gpu --cutout --auxiliary \
 --batch_size 96 --init_channels 36

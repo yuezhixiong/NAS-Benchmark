@@ -1,9 +1,9 @@
-save=fgsm_nop_min1e6_outer
-gpu=1
+save=fast_nop_min1e6_outer
+gpu=4
 
 python train_search.py --save $save --gpu $gpu \
 --batch_size 64 --unrolled --cutout \
---adv FGSM --nop_outer --MGDA --constrain min --adv_outer
+--adv fast --nop_outer --MGDA --constrain min --adv_outer
 
 python copy_genotype.py --save $save
 
