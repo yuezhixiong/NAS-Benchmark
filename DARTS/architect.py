@@ -6,7 +6,7 @@ sys.path.append('../')
 from min_norm_solvers import MinNormSolver, gradient_normalizers
 import torch.nn.functional as F
 from utils import clamp, _concat
-
+from collections import namedtuple
 
 class Architect(object):
 
@@ -43,14 +43,18 @@ class Architect(object):
     #   self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
     # else:
     #     self._backward_step(input_valid, target_valid)
-    self._backward_step(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
+    sol = self._backward_step(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
     self.optimizer.step()
+    return sol
 
   # def _backward_step(self, input_valid, target_valid):
   #   loss = self.model._loss(input_valid, target_valid)
   #   loss.backward()
 
-  def param_number(self, unrolled_model, constrain, constrain_size):
+  def param_number(self, unrolled_model):
+    constrain = self.args.constrain
+    constrain_max = Variable(torch.Tensor([self.args.constrain_max])).cuda()
+    constrain_min = Variable(torch.Tensor([self.args.constrain_min])).cuda()
     def compute_u(C, is_reduction):
       a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
 #       u = torch.from_numpy(np.repeat(a, 14, axis=1))
@@ -71,10 +75,13 @@ class Architect(object):
         u = compute_u(C_list[i], is_reduction=False)
       loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
     if constrain=='max':
-      # print(loss-constrain_size) # torch.cuda.FloatTensor 
-      return torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_size)[0]
+      return torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_max)[0]
     elif constrain=='min':
-      return torch.max(Variable(torch.ones(1)).cuda(), constrain_size-loss)[0]
+      return torch.max(Variable(torch.ones(1)).cuda(), constrain_min-loss)[0]
+    elif constrain=='both':
+      # return torch.min(constrain_max, torch.max(constrain_min, loss)[0])[0]
+
+      return loss + torch.max( torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_max)[0], constrain_min-loss)[0]
     else:
       return loss
 
@@ -127,7 +134,7 @@ class Architect(object):
     # ---- param loss ----
     if self.args.nop_outer:
       self.optimizer.zero_grad()
-      param_loss = self.param_number(unrolled_model, self.args.constrain, self.args.constrain_size)
+      param_loss = self.param_number(unrolled_model)
       loss_data['nop'] = param_loss.data[0]
       param_loss.backward()
       grads['nop'] = []
@@ -151,7 +158,7 @@ class Architect(object):
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     else:
       sol = [1] * len(grads)
-    print(sol)
+    # print(sol)
 
     loss = 0
     for kk, t in enumerate(grads):
@@ -162,7 +169,7 @@ class Architect(object):
         unrolled_loss_adv = unrolled_model._loss(adv_input, target_valid)
         loss += float(sol[kk]) * unrolled_loss_adv
       elif t == 'nop':
-        param_loss = self.param_number(unrolled_model, self.args.constrain, self.args.constrain_size)
+        param_loss = self.param_number(unrolled_model)
         loss += float(sol[kk]) * param_loss
     self.optimizer.zero_grad()
     loss.backward()
@@ -181,6 +188,12 @@ class Architect(object):
           v.grad = Variable(g.data)
         else:
           v.grad.data.copy_(g.data)
+
+    aa = [[gr.pow(2).sum().data[0] for gr in grads[t]] for t in grads]
+    logs = namedtuple("logs", ['sol', 'loss_data', 'grad'])(sol, loss_data, aa)
+    # logs.sol = sol
+    # logs.param_loss = param_loss
+    return logs
 
   def _construct_model_from_theta(self, theta):
     # a new model with the same alpha

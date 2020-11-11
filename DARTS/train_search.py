@@ -49,12 +49,13 @@ parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD
 
 parser.add_argument('--nop_outer', default=False, action='store_true', help='optimize number of parameter')
 # parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
-parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
-parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
+parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'both', 'none'], help='use constraint in model size')
+# parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
-
+parser.add_argument('--constrain_min', type=int, default=1e6, help='constrain the model size')
+parser.add_argument('--constrain_max', type=int, default=1.5e6, help='constrain the model size')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -192,8 +193,10 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
         
-        architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit)
-
+        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit)
+        logging.info('sol = ' + str(logs.sol))
+        logging.info('loss_data = ' + str(logs.loss_data))
+        logging.info('grad_data = ' + str(logs.grad))
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
 
