@@ -1,9 +1,10 @@
-save=nop_min1e6
+save=fgsm_nop_min11e5
 gpu=6
 
 # python train_search.py --save $save --gpu $gpu \
 # --batch_size 64 --unrolled --cutout \
-# --nop --constrain min
+# --adv FGSM --MGDA --nop \
+# --constrain min --constrain_size 900000
 
 # python copy_genotype.py --save $save
 
@@ -12,4 +13,4 @@ gpu=6
 
 python test_adv.py --arch $save --batch_size 128 --gpu $gpu --auxiliary --cutout \
 --attack PGD --init_channels 36 \
---model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/nop_min1e6/auxiliary0.4_cutout16_batchsize96_channel36_cifar10/best_model.pt"
+--model_path "/home/yuezx/NAS-Benchmark/DARTS_LBJ/fgsm_nop_min11e5/auxiliary0.4_cutout16_batchsize96_channel36_cifar10/best_model.pt"

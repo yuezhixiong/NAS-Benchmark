@@ -74,10 +74,12 @@ class Architect(object):
         alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
         u = compute_u(C_list[i], is_reduction=False)
       loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
+    loss = loss / 1e6
     if constrain=='max':
       return torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_max)[0]
     elif constrain=='min':
-      return torch.max(Variable(torch.ones(1)).cuda(), constrain_min-loss)[0]
+      # return torch.max(Variable(torch.ones(1)).cuda(), constrain_min-loss)[0]
+      return torch.max(constrain_min, loss)[0]
     elif constrain=='both':
       # return torch.min(constrain_max, torch.max(constrain_min, loss)[0])[0]
 

@@ -33,7 +33,7 @@ parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=3, help='GPU device id')
-parser.add_argument('--epochs', type=int, default=25, help='num of training epochs')
+parser.add_argument('--epochs', type=int, default=2, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=5, help='total number of layers')
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
@@ -161,7 +161,7 @@ def main():
         drop_rate = args.dropout_rate
     else:
         drop_rate = [0.0, 0.0, 0.0]
-    eps_no_archs = [10, 10, 10]
+    eps_no_archs = [1, 1, 1] # time
     for sp in range(len(num_to_keep)):
         model = Network(args.init_channels + int(add_width[sp]), CLASSES, args.layers + int(add_layers[sp]), criterion, switches_normal=switches_normal, switches_reduce=switches_reduce, p=float(drop_rate[sp]), largemode=args.dataset in utils.LARGE_DATASETS)
         

@@ -20,7 +20,7 @@ from model import NetworkImageNet as NetworkLarge
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
 parser.add_argument('--workers', type=int, default=1, help='number of workers')
-parser.add_argument('--batch_size', type=int, default=32, help='batch size')
+parser.add_argument('--batch_size', type=int, default=96, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
@@ -78,6 +78,8 @@ elif args.dataset == "flowers102":
     CLASSES = 102
     data_path = '%s/flowers102/train' % args.tmp_data_dir
     val_path = '%s/flowers102/test' % args.tmp_data_dir
+elif args.dataset == "svhn":
+    CLASSES = 10
 
 def main():
     if not torch.cuda.is_available():
@@ -121,31 +123,37 @@ def main():
         momentum=args.momentum,
         weight_decay=args.weight_decay
         )
-    train_transform, valid_transform = utils.data_transforms(args.dataset,args.cutout,args.cutout_length)
-    if args.dataset == "CIFAR100":
-        train_data = dset.CIFAR100(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
-        valid_data = dset.CIFAR100(root=args.tmp_data_dir, train=False, download=True, transform=valid_transform)
-    elif args.dataset == "CIFAR10":
-        train_data = dset.CIFAR10(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
-        valid_data = dset.CIFAR10(root=args.tmp_data_dir, train=False, download=True, transform=valid_transform)
-    elif args.dataset == 'mit67':
-        dset_cls = dset.ImageFolder
-        data_path = '%s/MIT67/train' % args.tmp_data_dir  
-        val_path = '%s/MIT67/test' % args.tmp_data_dir 
-        train_data = dset_cls(root=data_path, transform=train_transform)
-        valid_data = dset_cls(root=val_path, transform=valid_transform)
-    elif args.dataset == 'sport8':
-        dset_cls = dset.ImageFolder
-        data_path = '%s/Sport8/train' % args.tmp_data_dir 
-        val_path = '%s/Sport8/test' % args.tmp_data_dir  
-        train_data = dset_cls(root=data_path, transform=train_transform)
-        valid_data = dset_cls(root=val_path, transform=valid_transform)
-    elif args.dataset == "flowers102":
-        dset_cls = dset.ImageFolder
-        data_path = '%s/flowers102/train' % args.tmp_data_dir
-        val_path = '%s/flowers102/test' % args.tmp_data_dir
-        train_data = dset_cls(root=data_path, transform=train_transform)
-        valid_data = dset_cls(root=val_path, transform=valid_transform)
+
+    if args.dataset == "svhn":
+        train_transform, valid_transform = utils._data_transforms_svhn(args)
+        train_data = dset.SVHN(root=args.tmp_data_dir, split='train', download=True, transform=train_transform)
+        valid_data = dset.SVHN(root=args.tmp_data_dir, split='test', download=True, transform=valid_transform)
+    else:
+        train_transform, valid_transform = utils.data_transforms(args.dataset,args.cutout,args.cutout_length)
+        if args.dataset == "CIFAR100":
+            train_data = dset.CIFAR100(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
+            valid_data = dset.CIFAR100(root=args.tmp_data_dir, train=False, download=True, transform=valid_transform)
+        elif args.dataset == "CIFAR10":
+            train_data = dset.CIFAR10(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
+            valid_data = dset.CIFAR10(root=args.tmp_data_dir, train=False, download=True, transform=valid_transform)
+        elif args.dataset == 'mit67':
+            dset_cls = dset.ImageFolder
+            data_path = '%s/MIT67/train' % args.tmp_data_dir  
+            val_path = '%s/MIT67/test' % args.tmp_data_dir 
+            train_data = dset_cls(root=data_path, transform=train_transform)
+            valid_data = dset_cls(root=val_path, transform=valid_transform)
+        elif args.dataset == 'sport8':
+            dset_cls = dset.ImageFolder
+            data_path = '%s/Sport8/train' % args.tmp_data_dir 
+            val_path = '%s/Sport8/test' % args.tmp_data_dir  
+            train_data = dset_cls(root=data_path, transform=train_transform)
+            valid_data = dset_cls(root=val_path, transform=valid_transform)
+        elif args.dataset == "flowers102":
+            dset_cls = dset.ImageFolder
+            data_path = '%s/flowers102/train' % args.tmp_data_dir
+            val_path = '%s/flowers102/test' % args.tmp_data_dir
+            train_data = dset_cls(root=data_path, transform=train_transform)
+            valid_data = dset_cls(root=val_path, transform=valid_transform)
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=args.workers)
 

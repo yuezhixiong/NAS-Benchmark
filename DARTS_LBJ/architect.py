@@ -6,6 +6,7 @@ sys.path.append('../')
 from min_norm_solvers import MinNormSolver, gradient_normalizers
 import torch.nn.functional as F
 from utils import clamp
+from collections import namedtuple
 
 
 def _concat(xs):
@@ -51,10 +52,11 @@ class Architect(object):
         epsilon = kwargs.get('epsilon')
         self._backward_step_unrolled_outer(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, constrain, constrain_size, entropy, lambda_entropy, epsilon, upper_limit, lower_limit)
       else:
-        self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, constrain, constrain_size, entropy, lambda_entropy)
+        logs = self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, constrain, constrain_size, entropy, lambda_entropy)
     else:
         self._backward_step(input_valid, target_valid)
     self.optimizer.step()
+    return logs
 
   def _backward_step(self, input_valid, target_valid):
     loss = self.model._loss(input_valid, target_valid)
@@ -131,7 +133,7 @@ class Architect(object):
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     else:
       sol = [1,1]
-    print(sol)
+    # print(sol)
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
     if entropy:
       entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
@@ -158,6 +160,10 @@ class Architect(object):
         v.grad = Variable(g.data)
       else:
         v.grad.data.copy_(g.data)
+
+    loss_data = [unrolled_loss.data[0], param_loss.data[0]]
+    logs = namedtuple("logs", ['sol', 'loss_data'])(sol, loss_data)
+    return logs
 
   def _backward_step_unrolled_outer(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, C, constrain, constrain_size, entropy, lambda_entropy, epsilon, upper_limit, lower_limit):
     grads = {}

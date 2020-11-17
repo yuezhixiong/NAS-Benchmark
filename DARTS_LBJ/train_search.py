@@ -198,7 +198,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         if args.outer:
             architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit)
         else:
-            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+            logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+            logging.info('sol = ' + str(logs.sol))
+            logging.info('loss_data = ' + str(logs.loss_data))
 
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
@@ -214,9 +216,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             delta = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
             delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
-            logits_adv = model(adv_input)  
 
-            loss = criterion(logits_adv, target)
+            loss = criterion(model(adv_input), target) # + criterion(model(input), target)
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)

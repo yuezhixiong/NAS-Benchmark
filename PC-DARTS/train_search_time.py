@@ -28,7 +28,7 @@ parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=2, help='gpu device id')
-parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
+parser.add_argument('--epochs', type=int, default=2, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
@@ -197,9 +197,10 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr,e
     input_search = Variable(input_search, requires_grad=False).cuda()
     target_search = Variable(target_search, requires_grad=False).cuda()
 
-    if epoch>=15:
+    # if epoch>=15:
+    if epoch>=1:
     # if True:
-      # print('warning if True rather than epoch>15')
+      print('warning if True rather than epoch>15')
       # architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, C=args.init_channels)
       architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
