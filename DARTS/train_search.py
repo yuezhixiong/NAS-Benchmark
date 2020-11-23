@@ -44,7 +44,8 @@ parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='lear
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
 parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD', 'fast'], help='use FGSM/PGD advsarial training')
 parser.add_argument('--epsilon', default=2, type=int)
-parser.add_argument('--inner_lambda', default=1, type=int)
+parser.add_argument('--acc_lambda', default=1, type=int)
+parser.add_argument('--adv_lambda', default=1, type=int)
 parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD free adversarial training')
 
 parser.add_argument('--nop_outer', default=False, action='store_true', help='optimize number of parameter')
@@ -54,8 +55,10 @@ parser.add_argument('--constrain', type=str, default='none', choices=['max', 'mi
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
-parser.add_argument('--constrain_min', type=int, default=1e6, help='constrain the model size')
-parser.add_argument('--constrain_max', type=int, default=1.5e6, help='constrain the model size')
+parser.add_argument('--constrain_min', type=int, default=1, help='constrain the model size')
+parser.add_argument('--constrain_max', type=int, default=1.5, help='constrain the model size')
+# parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
+parser.add_argument('--temperature', type=str, default='none', choices=['none', 'A', 'B', 'C', 'D', 'GumbelA', 'GumbelB'], help='use tau in alpha softmax of param_loss')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -67,6 +70,10 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
+sols = []
+loss_datas = []
+alphas_normals = []
+alphas_reduces = []
 
 def main():
     if not torch.cuda.is_available():
@@ -120,12 +127,12 @@ def main():
     train_queue = torch.utils.data.DataLoader(
             train_data, batch_size=args.batch_size,
             sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-            pin_memory=True, num_workers=2)
+            pin_memory=True, num_workers=1)
 
     valid_queue = torch.utils.data.DataLoader(
             train_data, batch_size=args.batch_size,
             sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
-            pin_memory=True, num_workers=2)
+            pin_memory=True, num_workers=1)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, float(args.epochs), eta_min=args.learning_rate_min)
@@ -144,9 +151,18 @@ def main():
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
+        alphas_normal = F.softmax(model.alphas_normal, dim=-1).data.cpu().numpy()
+        alphas_normals.append(alphas_normal)
+        alphas_reduce = F.softmax(model.alphas_reduce, dim=-1).data.cpu().numpy()
+        alphas_reduces.append(alphas_reduce)
+        np.save(os.path.join(args.save, 'alphas_normal.npy'), alphas_normals)
+        np.save(os.path.join(args.save, 'alphas_reduce.npy'), alphas_reduces)
+
         # training
-        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args)
+        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch)
         logging.info('train_acc %f', train_acc)
+        np.save(os.path.join(args.save, 'sols.npy'), sols)
+        np.save(os.path.join(args.save, 'loss_data.npy'), loss_datas)
 
         # validation
         valid_acc, valid_obj = infer(valid_queue, model, criterion)
@@ -154,10 +170,7 @@ def main():
 
         utils.save(model, os.path.join(args.save, 'weights.pt'))
 
-        print(F.softmax(model.alphas_normal, dim=-1))
-        print(F.softmax(model.alphas_reduce, dim=-1))
-
-def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args):
+def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
@@ -181,6 +194,27 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     lower_limit = ((0 - mean)/ std).cuda()
     epsilon = ((args.epsilon / 255.) / std).cuda()
 
+    if args.temperature == 'none':
+        tau = 1
+    elif args.temperature == 'A':
+        tau = 1 / 2**(epoch//10)
+    elif args.temperature == 'B':
+        tau = 1
+        if epoch >= 10:
+            tau = 0.1
+    elif args.temperature=='C':
+        tau = 1 / 10**(epoch//10)
+    elif args.temperature=='D':
+        tau = 1
+        if epoch >= 10:
+            tau = 0.00001
+    elif args.temperature=='GumbelA':
+        tau = 1 / 2**(epoch//10)
+    elif args.temperature=='GumbelB':
+        tau = 1 / 10**(epoch//10)
+
+    logging.info('temperature tau %f', tau)
+
     for step, (input, target) in enumerate(train_queue):
         model.train()
         n = input.size(0)
@@ -193,9 +227,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
         
-        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit)
-        logging.info('sol = ' + str(logs.sol))
-        logging.info('loss_data = ' + str(logs.loss_data))
+        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit, tau=tau)
+        sols.append(logs.sol)
+        loss_datas.append(logs.loss_data)
         # logging.info('grad_data = ' + str(logs.grad))
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
@@ -212,7 +246,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
 
-            loss = args.inner_lambda * criterion(model(input), target) + criterion(model(adv_input), target)
+            loss = args.acc_lambda * criterion(model(input), target) + args.adv_lambda * criterion(model(adv_input), target)
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
@@ -235,7 +269,11 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
 
-            loss = args.inner_lambda * criterion(model(input), target) + criterion(model(adv_input), target)
+            loss = 0
+            if args.acc_lambda:
+                loss += args.acc_lambda * criterion(model(input), target)
+            if args.adv_lambda:
+                loss += args.adv_lambda * criterion(model(adv_input), target)
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)

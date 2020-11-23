@@ -7,6 +7,7 @@ from min_norm_solvers import MinNormSolver, gradient_normalizers
 import torch.nn.functional as F
 from utils import clamp, _concat
 from collections import namedtuple
+from gumbel_softmax import gumbel_softmax
 
 class Architect(object):
 
@@ -43,15 +44,17 @@ class Architect(object):
     #   self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
     # else:
     #     self._backward_step(input_valid, target_valid)
-    sol = self._backward_step(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
+    self.tau = kwargs.get('tau')
+    logs = self._backward_step(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
     self.optimizer.step()
-    return sol
+    return logs
 
   # def _backward_step(self, input_valid, target_valid):
   #   loss = self.model._loss(input_valid, target_valid)
   #   loss.backward()
 
   def param_number(self, unrolled_model):
+    tau = self.tau
     constrain = self.args.constrain
     constrain_max = Variable(torch.Tensor([self.args.constrain_max])).cuda()
     constrain_min = Variable(torch.Tensor([self.args.constrain_min])).cuda()
@@ -68,10 +71,20 @@ class Architect(object):
     C_list = unrolled_model._C_list
     for i in range(unrolled_model._layers):
       if unrolled_model.cells[i].reduction:
-        alpha = F.softmax(unrolled_model.arch_parameters()[1], dim=-1)
+        if self.args.temperature[:-1] == 'Gumbel':
+          alpha = F.softmax(unrolled_model.arch_parameters()[1], dim=-1)
+          alpha = gumbel_softmax(alpha, tau=tau, hard=True)
+        else:
+          alpha = F.softmax(unrolled_model.arch_parameters()[1]/tau, dim=-1)
+
         u = compute_u(C_list[i], is_reduction=True)
       else:
-        alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
+        if self.args.temperature[:-1] == 'Gumbel':
+          alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
+          alpha = gumbel_softmax(alpha, tau=tau, hard=True)
+        else:
+          alpha = F.softmax(unrolled_model.arch_parameters()[0]/tau, dim=-1)
+
         u = compute_u(C_list[i], is_reduction=False)
       loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
     loss = loss / 1e6
@@ -191,8 +204,8 @@ class Architect(object):
         else:
           v.grad.data.copy_(g.data)
 
-    aa = [[gr.pow(2).sum().data[0] for gr in grads[t]] for t in grads]
-    logs = namedtuple("logs", ['sol', 'loss_data', 'grad'])(sol, loss_data, aa)
+    # aa = [[gr.pow(2).sum().data[0] for gr in grads[t]] for t in grads]
+    logs = namedtuple("logs", ['sol', 'loss_data'])(sol, loss_data)
     # logs.sol = sol
     # logs.param_loss = param_loss
     return logs

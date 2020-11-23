@@ -19,7 +19,7 @@ from model import NetworkCIFAR as Network
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
-parser.add_argument('--batch_size', type=int, default=1, help='batch size')
+parser.add_argument('--batch_size', type=int, default=128, help='batch size')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
@@ -107,6 +107,8 @@ def main():
       test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit, epsilon, step_size)
   logging.info('test_adv_acc %f', test_adv_acc)
 
+  return test_adv_acc
+
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
 
@@ -138,8 +140,7 @@ def test_FGSM(net, testloader, upper_limit, lower_limit, epsilon):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-        print(acc, end='\r')
-    
+    print(acc)
     return acc
 
 def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
@@ -175,8 +176,7 @@ def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-        print(acc, end='\r')
-    
+    print(acc)
     return acc
 
 def infer(test_queue, model, criterion):
