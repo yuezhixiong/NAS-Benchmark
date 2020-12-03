@@ -56,7 +56,7 @@ parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
 parser.add_argument('--constrain_min', type=int, default=1, help='constrain the model size')
-parser.add_argument('--constrain_max', type=int, default=1.5, help='constrain the model size')
+parser.add_argument('--constrain_max', type=int, default=1.0, help='constrain the model size')
 # parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
 parser.add_argument('--temperature', type=str, default='none', choices=['none', 'A', 'B', 'C', 'D', 'GumbelA', 'GumbelB'], help='use tau in alpha softmax of param_loss')
 args = parser.parse_args()
@@ -109,7 +109,8 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.cuda()
-    model = Network(args.init_channels, class_num, args.layers, criterion)
+    tau = 0.1
+    model = Network(args.init_channels, class_num, args.layers, criterion, tau=tau)
     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
@@ -143,6 +144,7 @@ def main():
 
     architect = Architect(model, args)
 
+
     for epoch in range(args.epochs):
         scheduler.step()
         lr = scheduler.get_lr()[0]
@@ -151,9 +153,10 @@ def main():
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
-        alphas_normal = F.softmax(model.alphas_normal, dim=-1).data.cpu().numpy()
+        print(model.alphas_normal.data.cpu().numpy())
+        alphas_normal = F.softmax(model.alphas_normal, dim=-1).data.cpu().numpy()/tau
         alphas_normals.append(alphas_normal)
-        alphas_reduce = F.softmax(model.alphas_reduce, dim=-1).data.cpu().numpy()
+        alphas_reduce = F.softmax(model.alphas_reduce, dim=-1).data.cpu().numpy()/tau
         alphas_reduces.append(alphas_reduce)
         np.save(os.path.join(args.save, 'alphas_normal.npy'), alphas_normals)
         np.save(os.path.join(args.save, 'alphas_reduce.npy'), alphas_reduces)
@@ -197,19 +200,11 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     if args.temperature == 'none':
         tau = 1
     elif args.temperature == 'A':
-        tau = 1 / 2**(epoch//10)
+        tau = 0.1
     elif args.temperature == 'B':
-        tau = 1
-        if epoch >= 10:
-            tau = 0.1
-    elif args.temperature=='C':
         tau = 1 / 10**(epoch//10)
-    elif args.temperature=='D':
-        tau = 1
-        if epoch >= 10:
-            tau = 0.00001
     elif args.temperature=='GumbelA':
-        tau = 1 / 2**(epoch//10)
+        tau = 0.1
     elif args.temperature=='GumbelB':
         tau = 1 / 10**(epoch//10)
 

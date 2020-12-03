@@ -55,6 +55,7 @@ class Architect(object):
 
   def param_number(self, unrolled_model):
     tau = self.tau
+    # tau = 0.001
     constrain = self.args.constrain
     constrain_max = Variable(torch.Tensor([self.args.constrain_max])).cuda()
     constrain_min = Variable(torch.Tensor([self.args.constrain_min])).cuda()
@@ -74,6 +75,7 @@ class Architect(object):
         if self.args.temperature[:-1] == 'Gumbel':
           alpha = F.softmax(unrolled_model.arch_parameters()[1], dim=-1)
           alpha = gumbel_softmax(alpha, tau=tau, hard=True)
+          # print(alpha)
         else:
           alpha = F.softmax(unrolled_model.arch_parameters()[1]/tau, dim=-1)
 
@@ -86,7 +88,8 @@ class Architect(object):
           alpha = F.softmax(unrolled_model.arch_parameters()[0]/tau, dim=-1)
 
         u = compute_u(C_list[i], is_reduction=False)
-      loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
+      loss += (2 * torch.mul(alpha, u.t()).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
+    print(alpha[0].data.cpu().numpy())
     loss = loss / 1e6
     if constrain=='max':
       return torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_max)[0]
@@ -208,6 +211,7 @@ class Architect(object):
     logs = namedtuple("logs", ['sol', 'loss_data'])(sol, loss_data)
     # logs.sol = sol
     # logs.param_loss = param_loss
+    print(logs)
     return logs
 
   def _construct_model_from_theta(self, theta):

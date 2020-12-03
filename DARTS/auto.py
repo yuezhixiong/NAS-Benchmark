@@ -90,11 +90,13 @@ def run(config):
         # logging.info('PGD_acc ' + str(adv_acc))
 
 # adv_acc_values = [(0, 1), (1, 0)]
+adv = 'fast'
 adv_acc_values = [(0, 1)]
-constrain = 'min'
-temperature = 'GumbelB'
+constrain = 'none'
+temperature = 'GumbelA' #GumbelA
 nop_outer = 1
 mgda = 1
+adv_outer = 0
 
 search = 1
 train = 0
@@ -102,13 +104,16 @@ test_adv = 0
 
 for adv_lambda, acc_lambda in adv_acc_values:
     config_name = 'inner'
-    if adv_lambda:
-        config_name += '_adv' + str(adv_lambda)
+    if adv != 'none':
+        if adv_lambda:
+            config_name += '_adv' + str(adv_lambda)
     if acc_lambda:
         config_name += '_acc' + str(acc_lambda)
 
     config_name += '_outer'
     
+    if adv_outer:
+        config_name += '_adv'
     if nop_outer:
         config_name += '_nop'
     if mgda:
@@ -119,8 +124,8 @@ for adv_lambda, acc_lambda in adv_acc_values:
         config_name += '_temp' + temperature
     
     config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv},
-                    'inner':{'adv':'fast', 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
-                    'outer':{'nop_outer':nop_outer, 'adv_outer':0, 'mgda':1, 'constrain':constrain, 'temperature':temperature}}
+                    'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
+                    'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'temperature':temperature}}
     
     config_parser.read_dict(config_dict)
     config_parser.write(open(os.path.join('config/', config_name) + '.ini', 'w'))
