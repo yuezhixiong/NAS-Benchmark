@@ -55,8 +55,8 @@ parser.add_argument('--constrain', type=str, default='none', choices=['max', 'mi
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
-parser.add_argument('--constrain_min', type=int, default=1, help='constrain the model size')
-parser.add_argument('--constrain_max', type=int, default=1.0, help='constrain the model size')
+parser.add_argument('--constrain_min', type=float, default=0.25, help='constrain the model size')
+parser.add_argument('--constrain_max', type=float, default=1.0, help='constrain the model size')
 # parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
 parser.add_argument('--temperature', type=str, default='none', choices=['none', 'A', 'B', 'C', 'D', 'GumbelA', 'GumbelB'], help='use tau in alpha softmax of param_loss')
 args = parser.parse_args()
@@ -109,8 +109,13 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.cuda()
-    tau = 0.1
-    model = Network(args.init_channels, class_num, args.layers, criterion, tau=tau)
+
+    tau = 1
+    if args.temperature == 'none':
+        tau = 1
+    else:
+        tau = 0.1
+    model = Network(args.init_channels, class_num, args.layers, criterion, tau=tau, big_alpha=True)
     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
@@ -153,10 +158,11 @@ def main():
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
-        print(model.alphas_normal.data.cpu().numpy())
-        alphas_normal = F.softmax(model.alphas_normal, dim=-1).data.cpu().numpy()/tau
+        # print(model.alphas_normal.data.cpu().numpy())
+        alphas_normal = F.softmax(model.alphas_normal/tau, dim=-1).data.cpu().numpy()
+        logging.info('alphas_normal[0]: '+str(alphas_normal[0]))
         alphas_normals.append(alphas_normal)
-        alphas_reduce = F.softmax(model.alphas_reduce, dim=-1).data.cpu().numpy()/tau
+        alphas_reduce = F.softmax(model.alphas_reduce/tau, dim=-1).data.cpu().numpy()
         alphas_reduces.append(alphas_reduce)
         np.save(os.path.join(args.save, 'alphas_normal.npy'), alphas_normals)
         np.save(os.path.join(args.save, 'alphas_reduce.npy'), alphas_reduces)
@@ -222,7 +228,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False).cuda(async=True)
         
-        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit, tau=tau)
+        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit, tau=tau, epoch=epoch)
         sols.append(logs.sol)
         loss_datas.append(logs.loss_data)
         # logging.info('grad_data = ' + str(logs.grad))

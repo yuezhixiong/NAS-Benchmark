@@ -60,7 +60,7 @@ class Cell(nn.Module):
 
 class Network(nn.Module):
 
-  def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3, tau=1):
+  def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3, tau=1, big_alpha=False):
     super(Network, self).__init__()
     self._C = C
     self._C_list = []
@@ -70,6 +70,7 @@ class Network(nn.Module):
     self._steps = steps
     self._multiplier = multiplier
     self.tau = tau
+    self.big_alpha = big_alpha
 
     C_curr = stem_multiplier*C
     self.stem = nn.Sequential(
@@ -125,10 +126,12 @@ class Network(nn.Module):
     k = sum(1 for i in range(self._steps) for n in range(2+i))
     num_ops = len(PRIMITIVES)
 
-    # self.alphas_normal = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
-    # self.alphas_reduce = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
-    self.alphas_normal = Variable(torch.cat([1e-3*torch.randn(k, 4), 1e3*torch.rand(k, 4)], dim=1).cuda(), requires_grad=True)
-    self.alphas_reduce = Variable(torch.cat([1e-3*torch.randn(k, 4), 1e3*torch.rand(k, 4)], dim=1).cuda(), requires_grad=True)
+    self.alphas_normal = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
+    self.alphas_reduce = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
+    if self.big_alpha:
+      print('using big_alpha init')
+      self.alphas_normal = Variable(torch.cat([1e-3*torch.randn(k, 4), torch.rand(k, 4)], dim=1).cuda(), requires_grad=True)
+      self.alphas_reduce = Variable(torch.cat([1e-3*torch.randn(k, 4), torch.rand(k, 4)], dim=1).cuda(), requires_grad=True)
 
     self._arch_parameters = [
       self.alphas_normal,

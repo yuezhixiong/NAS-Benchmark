@@ -36,6 +36,9 @@ class Architect(object):
 
   def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled, **kwargs): #C, constrain, constrain_size, entropy, lambda_entropy):
     self.optimizer.zero_grad()
+
+    self.epoch = kwargs.get('epoch')
+
     if self.args.adv_outer:
       self.upper_limit = kwargs.get('upper_limit')
       self.lower_limit = kwargs.get('lower_limit')
@@ -88,7 +91,8 @@ class Architect(object):
           alpha = F.softmax(unrolled_model.arch_parameters()[0]/tau, dim=-1)
 
         u = compute_u(C_list[i], is_reduction=False)
-      loss += (2 * torch.mul(alpha, u.t()).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
+      # loss += (2 * torch.mul(alpha, u.t()).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
+      loss += torch.mul(alpha, u.t()).sum()
     print(alpha[0].data.cpu().numpy())
     loss = loss / 1e6
     if constrain=='max':
@@ -150,7 +154,7 @@ class Architect(object):
     # ---- adv loss ----
 
     # ---- param loss ----
-    if self.args.nop_outer:
+    if self.args.nop_outer:# and (self.epoch>=10):
       self.optimizer.zero_grad()
       param_loss = self.param_number(unrolled_model)
       loss_data['nop'] = param_loss.data[0]
@@ -172,7 +176,7 @@ class Architect(object):
         grads[t][gr_i] = grads[t][gr_i] / gn[t]
     
     # ---- MGDA -----
-    if self.args.MGDA:
+    if self.args.MGDA:# and (self.epoch>=10):
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     else:
       sol = [1] * len(grads)

@@ -31,6 +31,7 @@ def run(config):
     adv_outer = config.getboolean('outer', 'adv_outer')
     mgda = config.getboolean('outer', 'mgda')
     constrain = config.get('outer', 'constrain')
+    constrain_min = config.get('outer', 'constrain_min')
     temperature = config.get('outer', 'temperature')
 
     for keys in config:
@@ -50,7 +51,7 @@ def run(config):
             search_args += ['--adv_outer']
         if mgda:
             search_args += ['--MGDA']
-        search_args += ['--constrain', constrain]
+        search_args += ['--constrain', constrain, '--constrain_min', constrain_min]
         search_args += ['--temperature', temperature]
 
         result = subprocess.run(search_args)
@@ -58,7 +59,9 @@ def run(config):
             print('An error occurred')
             exit()
         else:
-            subprocess.run(['python', 'copy_genotype.py', '--save', save])
+            subprocess.run(['python', 'plot_log.py', '--save', save])
+            if train:
+                subprocess.run(['python', 'copy_genotype.py', '--save', save])
 
     init_channels = '36'
     dataset = 'cifar10'
@@ -91,19 +94,22 @@ def run(config):
 
 # adv_acc_values = [(0, 1), (1, 0)]
 adv = 'fast'
-adv_acc_values = [(0, 1)]
-constrain = 'none'
-temperature = 'GumbelA' #GumbelA
+adv_acc_values = [(1, 1)]
+constrain = 'min'
+constrain_min = 0.3
+temperature = 'A' #GumbelA
 nop_outer = 1
 mgda = 1
 adv_outer = 0
 
 search = 1
-train = 0
-test_adv = 0
+train = 1
+test_adv = 1
+
+config_name = 'bigAlpha'
 
 for adv_lambda, acc_lambda in adv_acc_values:
-    config_name = 'inner'
+    config_name += '_inner'
     if adv != 'none':
         if adv_lambda:
             config_name += '_adv' + str(adv_lambda)
@@ -119,13 +125,13 @@ for adv_lambda, acc_lambda in adv_acc_values:
     if mgda:
         config_name += '_mgda'
     if constrain != 'none':
-        config_name += '_' + constrain
+        config_name += '_' + constrain + str(int(constrain_min*100))
     if temperature != 'none':
         config_name += '_temp' + temperature
     
     config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv},
                     'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
-                    'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'temperature':temperature}}
+                    'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 'temperature':temperature}}
     
     config_parser.read_dict(config_dict)
     config_parser.write(open(os.path.join('config/', config_name) + '.ini', 'w'))
