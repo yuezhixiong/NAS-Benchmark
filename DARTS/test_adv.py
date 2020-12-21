@@ -107,7 +107,7 @@ def main():
       test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit, epsilon, step_size)
   logging.info('test_adv_acc %f', test_adv_acc)
 
-  return test_adv_acc
+  print(test_adv_acc)
 
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)

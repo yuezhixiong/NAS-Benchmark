@@ -63,11 +63,11 @@ class Architect(object):
     constrain_max = Variable(torch.Tensor([self.args.constrain_max])).cuda()
     constrain_min = Variable(torch.Tensor([self.args.constrain_min])).cuda()
     def compute_u(C, is_reduction):
-      a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
+      a = np.array([0, 0, 0, 0, 2*(C**2+11*C), 2*(C**2+27*C), C**2+11*C, C**2+27*C]).reshape(8, 1)
 #       u = torch.from_numpy(np.repeat(a, 14, axis=1))
       u = np.repeat(a, 14, axis=1)
       if is_reduction:
-        u[3, :] = u[3, :] + np.array([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
+        u[3, :] = u[3, :] + np.array([C**2+2*C, C**2+2*C, C**2+2*C, C**2+2*C, 0, C**2+2*C, C**2+2*C, 0, 0, C**2+2*C, C**2+2*C, 0, 0, 0])
       return Variable(torch.from_numpy(u)).float().cuda()
     loss = 0
     # u = torch.from_numpy(np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]))
@@ -94,7 +94,7 @@ class Architect(object):
       # loss += (2 * torch.mul(alpha, u.t()).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
       loss += torch.mul(alpha, u.t()).sum()
     print(alpha[0].data.cpu().numpy())
-    loss = loss / 1e6
+    loss = loss / 1e5
     if constrain=='max':
       return torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_max)[0]
     elif constrain=='min':

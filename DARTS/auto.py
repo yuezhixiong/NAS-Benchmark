@@ -9,7 +9,9 @@ args = parser.parse_args()
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
         format=log_format, datefmt='%m/%d %I:%M:%S %p')
-fh = logging.FileHandler(os.path.join(args.log, time.strftime("%Y%m%d-%H%M%S")+'.txt'))
+logpath = os.path.join(args.log, time.strftime("%Y%m%d-%H%M%S"))
+os.makedirs(logpath)
+fh = logging.FileHandler(os.path.join(logpath, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
@@ -73,7 +75,8 @@ def run(config):
         train_args += ['--arch', save]
         train_args += ['--init_channels', init_channels]
         train_args += ['--dataset', dataset]
-        subprocess.run(train_args)
+        proc = subprocess.check_output(train_args)
+        logging.info('clean_acc ' + proc.decode('utf-8').split()[-1])
 
     model_path = '{}/channel{}_{}/best_model.pt'.format(save, init_channels, dataset)
     if test_adv:
@@ -83,20 +86,20 @@ def run(config):
         attack_args += ['--gpu', gpu, '--model_path', model_path]
         attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
         proc = subprocess.check_output(attack_args)
-        logging.info('FGSM_acc ' + proc.decode('utf-8'))
+        logging.info('FGSM_acc ' + proc.decode('utf-8').split()[-1])
 
-        # attack = 'PGD'
-        # attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
-        # attack_args += ['--gpu', gpu, '--model_path', model_path, '--attack', attack]
-        # attack_args += ['--arch', save, '--init_channels', init_channels]
-        # adv_acc = subprocess.check_output(attack_args)
-        # logging.info('PGD_acc ' + str(adv_acc))
+        attack = 'PGD'
+        attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
+        attack_args += ['--gpu', gpu, '--model_path', model_path]
+        attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
+        proc = subprocess.check_output(attack_args)
+        logging.info('PGD_acc ' + proc.decode('utf-8').split()[-1])
 
 # adv_acc_values = [(0, 1), (1, 0)]
 adv = 'fast'
 adv_acc_values = [(1, 1)]
-constrain = 'min'
-constrain_min = 0.3
+constrain = 'none'
+constrain_min = 1
 temperature = 'A' #GumbelA
 nop_outer = 1
 mgda = 1
@@ -106,7 +109,7 @@ search = 1
 train = 1
 test_adv = 1
 
-config_name = 'bigAlpha'
+config_name = 'bigAlphaInit'
 
 for adv_lambda, acc_lambda in adv_acc_values:
     config_name += '_inner'
@@ -125,16 +128,18 @@ for adv_lambda, acc_lambda in adv_acc_values:
     if mgda:
         config_name += '_mgda'
     if constrain != 'none':
-        config_name += '_' + constrain + str(int(constrain_min*100))
+        config_name += '_' + constrain + str(int(constrain_min*10))
     if temperature != 'none':
         config_name += '_temp' + temperature
     
-    config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv},
+    # save_path = os.path.join(logpath, config_name)
+
+    config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'arch':config_name},
                     'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
                     'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 'temperature':temperature}}
     
     config_parser.read_dict(config_dict)
-    config_parser.write(open(os.path.join('config/', config_name) + '.ini', 'w'))
+    config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
 
     logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
     run(config_parser)

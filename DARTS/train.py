@@ -130,6 +130,8 @@ def main():
       best_acc = valid_acc
       utils.save(model, os.path.join(args.save, 'best_model.pt'))
     logging.info('best_acc %f', best_acc)
+  
+  print(best_acc)
       
 
 def train(train_queue, model, criterion, optimizer):
