@@ -24,6 +24,7 @@ def run(config):
     search = config.getboolean('other', 'search')
     train = config.getboolean('other', 'train')
     test_adv = config.getboolean('other', 'test_adv')
+    big_alpha = config.getboolean('other', 'big_alpha')
 
     adv = config.get('inner', 'adv')
     adv_lambda = config.get('inner', 'adv_lambda')
@@ -55,6 +56,8 @@ def run(config):
             search_args += ['--MGDA']
         search_args += ['--constrain', constrain, '--constrain_min', constrain_min]
         search_args += ['--temperature', temperature]
+        if big_alpha:
+            search_args += ['--big_alpha']
 
         result = subprocess.run(search_args)
         if result.returncode != 0:
@@ -62,8 +65,9 @@ def run(config):
             exit()
         else:
             subprocess.run(['python', 'plot_log.py', '--save', save])
-            if train:
-                subprocess.run(['python', 'copy_genotype.py', '--save', save])
+            subprocess.run(['python', 'copy_genotype.py', '--save', save])
+            proc = subprocess.check_output(['python', 'model_size.py', '--arch', save])
+            logging.info('train param size:' + proc.decode('utf-8').split()[-1])
 
     init_channels = '36'
     dataset = 'cifar10'
@@ -95,51 +99,57 @@ def run(config):
         proc = subprocess.check_output(attack_args)
         logging.info('PGD_acc ' + proc.decode('utf-8').split()[-1])
 
-# adv_acc_values = [(0, 1), (1, 0)]
+
 adv = 'fast'
-adv_acc_values = [(1, 1)]
-constrain = 'none'
-constrain_min = 1
-temperature = 'A' #GumbelA
+adv_acc_values = [(0, 1), (1, 1)]
+constrain = 'min'
+constrain_mins = [1, 2, 3]
+temperature = 'none' #GumbelA, none, A
 nop_outer = 1
 mgda = 1
 adv_outer = 0
 
+big_alpha = 1
 search = 1
-train = 1
-test_adv = 1
+train = 0
+test_adv = 0
 
-config_name = 'bigAlphaInit'
+for constrain_min in constrain_mins:
+    for adv_lambda, acc_lambda in adv_acc_values:
 
-for adv_lambda, acc_lambda in adv_acc_values:
-    config_name += '_inner'
-    if adv != 'none':
-        if adv_lambda:
-            config_name += '_adv' + str(adv_lambda)
-    if acc_lambda:
-        config_name += '_acc' + str(acc_lambda)
+        if big_alpha:
+            config_name = 'bigAlphaInit'
+        else:
+            config_name = 'randomInit'
 
-    config_name += '_outer'
-    
-    if adv_outer:
-        config_name += '_adv'
-    if nop_outer:
-        config_name += '_nop'
-    if mgda:
-        config_name += '_mgda'
-    if constrain != 'none':
-        config_name += '_' + constrain + str(int(constrain_min*10))
-    if temperature != 'none':
-        config_name += '_temp' + temperature
-    
-    # save_path = os.path.join(logpath, config_name)
+        config_name += '_inner'
+        if adv != 'none':
+            if adv_lambda:
+                config_name += '_adv' + str(adv_lambda)
+        if acc_lambda:
+            config_name += '_acc' + str(acc_lambda)
 
-    config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'arch':config_name},
-                    'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
-                    'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 'temperature':temperature}}
-    
-    config_parser.read_dict(config_dict)
-    config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
+        config_name += '_outer'
+        
+        if adv_outer:
+            config_name += '_adv'
+        if nop_outer:
+            config_name += '_nop'
+        if mgda:
+            config_name += '_mgda'
+        if constrain != 'none':
+            config_name += '_' + constrain + str(int(constrain_min*10))
+        if temperature != 'none':
+            config_name += '_temp' + temperature
+        
+        # save_path = os.path.join(logpath, config_name)
 
-    logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
-    run(config_parser)
+        config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'big_alpha':big_alpha},
+                        'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
+                        'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 'temperature':temperature}}
+        
+        config_parser.read_dict(config_dict)
+        config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
+
+        logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
+        run(config_parser)

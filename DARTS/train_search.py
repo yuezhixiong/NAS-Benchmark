@@ -59,6 +59,7 @@ parser.add_argument('--constrain_min', type=float, default=0.25, help='constrain
 parser.add_argument('--constrain_max', type=float, default=1.0, help='constrain the model size')
 # parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
 parser.add_argument('--temperature', type=str, default='none', choices=['none', 'A', 'B', 'C', 'D', 'GumbelA', 'GumbelB'], help='use tau in alpha softmax of param_loss')
+parser.add_argument('--big_alpha', default=False, action='store_true', help='use big_alpha initialization in search')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -115,7 +116,7 @@ def main():
         tau = 1
     else:
         tau = 0.1
-    model = Network(args.init_channels, class_num, args.layers, criterion, tau=tau, big_alpha=True)
+    model = Network(args.init_channels, class_num, args.layers, criterion, tau=tau, big_alpha=args.big_alpha)
     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
