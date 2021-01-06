@@ -9,6 +9,7 @@ from utils import clamp, _concat
 from collections import namedtuple
 from gumbel_softmax import gumbel_softmax
 
+
 class Architect(object):
 
   def __init__(self, model, args):
@@ -18,6 +19,20 @@ class Architect(object):
     self.optimizer = torch.optim.Adam(self.model.arch_parameters(),
         lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
     self.args = args
+
+  def fx_objective(self, x):
+    if self.args.fx == 'Sqr':
+      fx = x**2
+    elif self.args.fx == 'Cub':
+      fx = x**3
+    elif self.args.fx == 'Exp':
+      fx = np.exp(x)
+    elif self.args.fx == 'Tan':
+      fx = np.tanh(x)
+    else:
+      fx = x
+    return fx
+
 
   def _compute_unrolled_model(self, input, target, eta, network_optimizer):
     # loss on train data
@@ -93,7 +108,8 @@ class Architect(object):
         u = compute_u(C_list[i], is_reduction=False)
       # loss += (2 * torch.mul(alpha, u.t()).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
       loss += torch.mul(alpha, u.t()).sum()
-    print(alpha[0].data.cpu().numpy())
+    # print(alpha[0].data.cpu().numpy())
+    
     loss = loss / 1e5
     if constrain=='max':
       return torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_max)[0]
@@ -117,12 +133,15 @@ class Architect(object):
       unrolled_model = self.model
     if self.args.adv_outer:
       input_valid = Variable(input_valid.data, requires_grad=True).cuda()
+
+    # ---- acc loss ----
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
     # if entropy:
     #   entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
     #                 (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
     #   unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
     loss_data['acc'] = unrolled_loss.data[0]
+    loss_data['acc'] = self.fx_objective(loss_data['acc'])
     if self.args.adv_outer:
       unrolled_loss.backward(retain_graph=True)
     else:
@@ -132,39 +151,42 @@ class Architect(object):
     for param in unrolled_model.arch_parameters():
       if param.grad is not None:
           grads['acc'].append(Variable(param.grad.data.clone(), requires_grad=False))
+    # ---- acc loss end ----
 
     # ---- adv loss ----
     if self.args.adv_outer:
-      alpha = self.epsilon * 1.25
+      step_size = self.epsilon * 1.25
       delta = ((torch.rand(input_valid.size())-0.5)*2).cuda() * self.epsilon
       adv_grad = torch.autograd.grad(unrolled_loss, input_valid, retain_graph=False, create_graph=False)[0]
       adv_grad = adv_grad.detach().data
-      delta = clamp(delta + alpha * torch.sign(adv_grad), -self.epsilon, self.epsilon)
+      delta = clamp(delta + step_size * torch.sign(adv_grad), -self.epsilon, self.epsilon)
       delta = clamp(delta, self.lower_limit - input_valid.data, self.upper_limit - input_valid.data)
       adv_input = Variable(input_valid.data + delta, requires_grad=False).cuda()
       self.optimizer.zero_grad()
       unrolled_loss_adv = unrolled_model._loss(adv_input, target_valid)
       unrolled_loss_adv.backward()
       loss_data['adv'] = unrolled_loss_adv.data[0]
-
+      loss_data['adv'] = self.fx_objective(loss_data['adv'])
+      
       grads['adv'] = []
       for param in unrolled_model.arch_parameters():
         if param.grad is not None:
             grads['adv'].append(Variable(param.grad.data.clone(), requires_grad=False))
-    # ---- adv loss ----
+    # ---- adv loss end ----
 
     # ---- param loss ----
-    if self.args.nop_outer:# and (self.epoch>=10):
+    if self.args.nop_outer and (self.epoch>=self.args.nop_later):
       self.optimizer.zero_grad()
       param_loss = self.param_number(unrolled_model)
       loss_data['nop'] = param_loss.data[0]
+      loss_data['nop'] = self.fx_objective(loss_data['nop'])
       param_loss.backward()
       grads['nop'] = []
       for param in unrolled_model.arch_parameters():
         if param.grad is not None:
             grads['nop'].append(Variable(param.grad.data.clone(), requires_grad=False))
     # dalpha_param = [v.grad for v in unrolled_model.arch_parameters()]
-    # ---- param loss ----
+    # ---- param loss end ----
     
     if self.args.grad_norm:
       gn = gradient_normalizers(grads, loss_data, normalization_type='l2') # loss+, loss, l2
@@ -180,7 +202,7 @@ class Architect(object):
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     else:
       sol = [1] * len(grads)
-    # print(sol)
+    # print(sol) # acc, adv, nop
 
     loss = 0
     for kk, t in enumerate(grads):
@@ -195,7 +217,7 @@ class Architect(object):
         loss += float(sol[kk]) * param_loss
     self.optimizer.zero_grad()
     loss.backward()
-    # ---- MGDA -----
+    # ---- MGDA end -----
 
     if self.args.unrolled:
       dalpha = [v.grad for v in unrolled_model.arch_parameters()]

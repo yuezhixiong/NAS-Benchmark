@@ -9,7 +9,7 @@ args = parser.parse_args()
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
         format=log_format, datefmt='%m/%d %I:%M:%S %p')
-logpath = os.path.join(args.log, time.strftime("%Y%m%d-%H%M%S"))
+logpath = os.path.join(args.log, time.strftime("%Y%m%d-%H%M%S")+'-gpu'+args.gpu)
 os.makedirs(logpath)
 fh = logging.FileHandler(os.path.join(logpath, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
@@ -25,6 +25,7 @@ def run(config):
     train = config.getboolean('other', 'train')
     test_adv = config.getboolean('other', 'test_adv')
     big_alpha = config.getboolean('other', 'big_alpha')
+    dataset = config.get('other', 'dataset')
 
     adv = config.get('inner', 'adv')
     adv_lambda = config.get('inner', 'adv_lambda')
@@ -36,6 +37,8 @@ def run(config):
     constrain = config.get('outer', 'constrain')
     constrain_min = config.get('outer', 'constrain_min')
     temperature = config.get('outer', 'temperature')
+    fx = config.get('outer', 'fx')
+    nop_later = config.get('outer', 'nop_later')
 
     for keys in config:
         print(keys)
@@ -55,7 +58,7 @@ def run(config):
         if mgda:
             search_args += ['--MGDA']
         search_args += ['--constrain', constrain, '--constrain_min', constrain_min]
-        search_args += ['--temperature', temperature]
+        search_args += ['--temperature', temperature, '--fx', fx, '--dataset', dataset, '--nop_later', nop_later]
         if big_alpha:
             search_args += ['--big_alpha']
 
@@ -101,55 +104,67 @@ def run(config):
 
 
 adv = 'fast'
-adv_acc_values = [(0, 1), (1, 1)]
+adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
 constrain = 'min'
-constrain_mins = [1, 2, 3]
-temperature = 'none' #GumbelA, none, A
+constrain_mins = [0] #, 1, 2, 3] # [2, 3] # [1, 2, 3]
+temperature = 'none' # GumbelA, none, A
+fxs = ['none', 'Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
 nop_outer = 1
 mgda = 1
-adv_outer = 0
+adv_outer = 1
+datasets = ['cifar10'] #, 'cifar100']
+nop_later = 30 # 30
 
-big_alpha = 1
+big_alpha = 0
 search = 1
 train = 0
 test_adv = 0
 
-for constrain_min in constrain_mins:
-    for adv_lambda, acc_lambda in adv_acc_values:
+for dataset in datasets:
+    for constrain_min in constrain_mins:
+        for adv_lambda, acc_lambda in adv_acc_values:
+            for fx in fxs:
 
-        if big_alpha:
-            config_name = 'bigAlphaInit'
-        else:
-            config_name = 'randomInit'
+                if big_alpha:
+                    config_name = 'bigAlphaInit'
+                else:
+                    config_name = 'randomInit'
 
-        config_name += '_inner'
-        if adv != 'none':
-            if adv_lambda:
-                config_name += '_adv' + str(adv_lambda)
-        if acc_lambda:
-            config_name += '_acc' + str(acc_lambda)
+                if dataset != 'cifar10':
+                    config_name += '_' + dataset
 
-        config_name += '_outer'
-        
-        if adv_outer:
-            config_name += '_adv'
-        if nop_outer:
-            config_name += '_nop'
-        if mgda:
-            config_name += '_mgda'
-        if constrain != 'none':
-            config_name += '_' + constrain + str(int(constrain_min*10))
-        if temperature != 'none':
-            config_name += '_temp' + temperature
-        
-        # save_path = os.path.join(logpath, config_name)
+                config_name += '_inner'
+                if adv != 'none':
+                    if adv_lambda:
+                        config_name += '_adv' + str(adv_lambda)
+                if acc_lambda:
+                    config_name += '_acc' + str(acc_lambda)
 
-        config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'big_alpha':big_alpha},
-                        'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
-                        'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 'temperature':temperature}}
-        
-        config_parser.read_dict(config_dict)
-        config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
+                config_name += '_outer'
+                
+                if adv_outer:
+                    config_name += '_adv'
+                if nop_outer:
+                    config_name += '_nop'
+                if mgda:
+                    config_name += '_mgda'
+                if constrain != 'none':
+                    config_name += '_' + constrain + str(int(constrain_min*10))
+                if temperature != 'none':
+                    config_name += '_temp' + temperature
+                if fx != 'none':
+                    config_name += '_fx' + fx
 
-        logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
-        run(config_parser)
+                if nop_later != 0:
+                    config_name += '_nopLater' + str(nop_later)
+                # save_path = os.path.join(logpath, config_name)
+
+                config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'big_alpha':big_alpha, 'dataset':dataset},
+                                'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
+                                'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 'temperature':temperature, 'fx':fx, 'nop_later':nop_later}}
+                
+                config_parser.read_dict(config_dict)
+                config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
+
+                logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
+                run(config_parser)
