@@ -50,18 +50,19 @@ parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD
 
 parser.add_argument('--nop_outer', default=False, action='store_true', help='optimize number of parameter')
 # parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
-parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'both', 'none'], help='use constraint in model size')
+parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'both', 'abs', 'none'], help='use constraint in model size')
 # parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
-parser.add_argument('--constrain_min', type=float, default=0.25, help='constrain the model size')
-parser.add_argument('--constrain_max', type=float, default=1.0, help='constrain the model size')
+parser.add_argument('--constrain_min', type=float, default=0, help='constrain the model size')
+parser.add_argument('--constrain_max', type=float, default=0, help='constrain the model size')
 # parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
 parser.add_argument('--temperature', type=str, default='none', choices=['none', 'A', 'B', 'C', 'D', 'GumbelA', 'GumbelB'], help='use tau in alpha softmax of param_loss')
 parser.add_argument('--big_alpha', default=False, action='store_true', help='use big_alpha initialization in search')
 parser.add_argument('--fx', type=str, default='none', choices=['none', 'Sqr', 'Cub', 'Exp', 'Tan'], help='use fx transformation in fx_objective function before backward')
 parser.add_argument('--nop_later', type=int, default=0, help='add nop loss after n epoch in search')
+parser.add_argument('--adv_later', type=int, default=0, help='add adv loss after n epoch in search')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -85,6 +86,7 @@ def main():
 
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
+    torch.set_num_threads(8)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
     cudnn.enabled=True
@@ -167,12 +169,12 @@ def main():
         alphas_normals.append(alphas_normal)
         alphas_reduce = F.softmax(model.alphas_reduce/tau, dim=-1).data.cpu().numpy()
         alphas_reduces.append(alphas_reduce)
-        np.save(os.path.join(args.save, 'alphas_normal.npy'), alphas_normals)
-        np.save(os.path.join(args.save, 'alphas_reduce.npy'), alphas_reduces)
 
         # training
         train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch)
         logging.info('train_acc %f', train_acc)
+        np.save(os.path.join(args.save, 'alphas_normal.npy'), alphas_normals)
+        np.save(os.path.join(args.save, 'alphas_reduce.npy'), alphas_reduces)
         np.save(os.path.join(args.save, 'sols.npy'), sols)
         np.save(os.path.join(args.save, 'loss_data.npy'), loss_datas)
 

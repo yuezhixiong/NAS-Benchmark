@@ -7,7 +7,7 @@ from min_norm_solvers import MinNormSolver, gradient_normalizers
 import torch.nn.functional as F
 from utils import clamp, _concat
 from collections import namedtuple
-from gumbel_softmax import gumbel_softmax
+# from gumbel_softmax import gumbel_softmax
 
 
 class Architect(object):
@@ -118,8 +118,9 @@ class Architect(object):
       return torch.max(constrain_min, loss)[0]
     elif constrain=='both':
       # return torch.min(constrain_max, torch.max(constrain_min, loss)[0])[0]
-
       return loss + torch.max( torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_max)[0], constrain_min-loss)[0]
+    elif constrain=='abs':
+      return torch.abs(constrain_min - loss)[0]
     else:
       return loss
 
@@ -154,7 +155,7 @@ class Architect(object):
     # ---- acc loss end ----
 
     # ---- adv loss ----
-    if self.args.adv_outer:
+    if self.args.adv_outer and (self.epoch>=self.args.adv_later):
       step_size = self.epsilon * 1.25
       delta = ((torch.rand(input_valid.size())-0.5)*2).cuda() * self.epsilon
       adv_grad = torch.autograd.grad(unrolled_loss, input_valid, retain_graph=False, create_graph=False)[0]
@@ -198,7 +199,7 @@ class Architect(object):
         grads[t][gr_i] = grads[t][gr_i] / gn[t]
     
     # ---- MGDA -----
-    if self.args.MGDA:# and (self.epoch>=10):
+    if self.args.MGDA and (len(grads)>1):
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
     else:
       sol = [1] * len(grads)
