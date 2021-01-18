@@ -42,7 +42,10 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
+if not os.path.isdir(args.save):
+  os.makedirs(args.save)
 args.save = '{}/channel{}_{}'.format(args.save, args.init_channels, args.dataset)
+
 print(args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
