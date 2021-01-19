@@ -112,8 +112,8 @@ else:
     copyfile('auto.py', os.path.join(logpath, 'auto.py'))
     adv = 'fast'
     adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
-    constrain = 'min' # min, abs
-    constrain_mins = [2, 1] # [2, 3] # [1, 2, 3]
+    constrain = 'abs' # min, abs
+    constrain_mins = [3, 2, 1] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
@@ -122,7 +122,7 @@ else:
     datasets = ['cifar10'] #, 'cifar100']
     nop_later = 0 # 30
     adv_later = 0 # 30
-    epoch = 50
+    epoch = 100
 
     big_alpha = 0
     search = 1
