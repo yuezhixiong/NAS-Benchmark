@@ -76,7 +76,6 @@ def run(config):
             logging.info('train param size:' + proc.decode('utf-8').split()[-1])
 
     init_channels = '36'
-    dataset = 'cifar10'
     if train:
         logging.info("now running train")
         train_args = ['python', 'train.py', '--cutout', '--auxiliary']
