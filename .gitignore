@@ -9,3 +9,5 @@ DARTS_LBJ/search-*
 *.ipynb
 
 *.pdf
+
+**/**/

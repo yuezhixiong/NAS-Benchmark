@@ -4,7 +4,7 @@ from shutil import copyfile
 parser = argparse.ArgumentParser()
 parser.add_argument('--log', type=str, default='config/')
 parser.add_argument('--config', type=str, default='none')
-parser.add_argument('--gpu', type=str, default='1')
+parser.add_argument('--gpu', type=str, default='0')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
