@@ -21,7 +21,7 @@ parser.add_argument('--data', type=str, default='../data', help='location of the
 parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
+parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='./saved_models/weights.pt', help='path of pretrained model')
@@ -105,7 +105,7 @@ def main():
       test_adv_acc = test_FGSM(model, test_queue, upper_limit, lower_limit, epsilon)
   elif args.attack == 'PGD':  
       test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit, epsilon, step_size)
-  logging.info('test_adv_acc %f', test_adv_acc)
+  logging.info('test_adv_acc ' + test_adv_acc)
 
   print(test_adv_acc)
 
@@ -140,8 +140,8 @@ def test_FGSM(net, testloader, upper_limit, lower_limit, epsilon):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-    print('{:.2f}'.format(acc))
-    return acc
+
+    return '{:.2f}'.format(acc)
 
 def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
 
@@ -176,8 +176,8 @@ def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-    print('{:.2f}'.format(acc))
-    return acc
+
+    return '{:.2f}'.format(acc)
 
 def infer(test_queue, model, criterion):
   objs = utils.AvgrageMeter()

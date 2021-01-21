@@ -177,7 +177,7 @@ def save(model, model_path):
 
 
 def load(model, model_path):
-  model.load_state_dict(torch.load(model_path))
+  model.load_state_dict(torch.load(model_path, map_location='cuda:0'))
 
 
 def drop_path(x, drop_prob):

@@ -24,7 +24,7 @@ def run(arch, model_path, ACC=False, FGSM=False, PGD=False, init_channels='36', 
 
   
 
-  logging.info("now running "+model_path)
+  logging.info(model_path +'_eps'+ epsilon)
   results = [model_path]
   if ACC:
     attack_args = ['python', 'test.py', '--cutout', '--auxiliary']
@@ -60,15 +60,16 @@ def run(arch, model_path, ACC=False, FGSM=False, PGD=False, init_channels='36', 
 
 
 
-model_paths = ['randomInit_inner_acc1_outer_adv_nop_mgda_abs10/channel36_cifar10/model{:03d}.pt'.format(i) for i in range(590, 600, 10)
-                ]
-arch = 'randomInit_inner_acc1_outer_adv_nop_mgda_abs10'
-epsilons = []
+# model_paths = ['randomInit_inner_acc1_outer_adv_nop_mgda_abs10/channel36_cifar10/model{:03d}.pt'.format(i) for i in range(590, 600, 10)]
+model_paths = ['models/abs10_best.pt'] #['models/DARTS_V2_c30_best.pt']
+arch = 'randomInit_inner_acc1_outer_adv_nop_mgda_abs10' #'DARTS_V2'
+epsilons = [str(x) for x in range(1,2)]
 
 all_results = []
 for epsilon in epsilons:
+  logging.info('epsilon = ' + epsilon)
   for model_path in model_paths:
-    results = run(arch, model_path, ACC=False, PGD=True, epsilon=epsilon, step_num='7')
+    results = run(arch, model_path, ACC=False, FGSM=True, PGD=False, epsilon=epsilon, step_num='7', init_channels='36')
     all_results.append(results)
 
 df = pd.DataFrame(all_results)
