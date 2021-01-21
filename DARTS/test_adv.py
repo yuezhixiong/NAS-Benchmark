@@ -140,7 +140,7 @@ def test_FGSM(net, testloader, upper_limit, lower_limit, epsilon):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-    print(acc)
+    print('{:.2f}'.format(acc))
     return acc
 
 def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
@@ -176,7 +176,7 @@ def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-    print(acc)
+    print('{:.2f}'.format(acc))
     return acc
 
 def infer(test_queue, model, criterion):
@@ -186,8 +186,8 @@ def infer(test_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(test_queue):
-    input = Variable(input, volatile=True).cuda()
-    target = Variable(target, volatile=True).cuda()
+    input = Variable(input).cuda()
+    target = Variable(target).cuda()
 
     logits, _ = model(input)
     loss = criterion(logits, target)
