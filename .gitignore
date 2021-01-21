@@ -2,6 +2,10 @@ data/*
 
 *.out
 
+*.txt
+
+*.pyc
+
 DARTS_LBJ/*-EXP-*
 
 DARTS_LBJ/search-*
@@ -11,3 +15,6 @@ DARTS_LBJ/search-*
 *.pdf
 
 */*/
+DARTS_LBJ/E2RNAS.zip
+DARTS_LBJ/normal
+DARTS_LBJ/reduction
