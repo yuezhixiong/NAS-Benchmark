@@ -23,12 +23,12 @@ gpu = args.gpu
 def run(arch, model_path, ACC=False, FGSM=False, PGD=False, init_channels='36', epsilon='2', step_num='10'):
 
   
-
+  batch_size = str(64)
   logging.info(model_path +'_eps'+ epsilon)
-  results = [model_path]
+  results = []
   if ACC:
     attack_args = ['python', 'test.py', '--cutout', '--auxiliary']
-    attack_args += ['--gpu', gpu, '--model_path', model_path]
+    attack_args += ['--gpu', gpu, '--model_path', model_path, '--batch_size', batch_size]
     attack_args += ['--arch', arch, '--init_channels', init_channels]
     proc = subprocess.check_output(attack_args)
     clean_acc = proc.decode('utf-8').split()[-1]
@@ -39,7 +39,7 @@ def run(arch, model_path, ACC=False, FGSM=False, PGD=False, init_channels='36', 
     attack = 'FGSM'
     attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
     attack_args += ['--gpu', gpu, '--model_path', model_path, '--arch', arch, '--init_channels', init_channels]
-    attack_args += ['--attack', attack, '--epsilon', epsilon]
+    attack_args += ['--attack', attack, '--epsilon', epsilon, '--batch_size', batch_size]
     proc = subprocess.check_output(attack_args)
     fgsm_acc = proc.decode('utf-8').split()[-1]
     logging.info('FGSM_acc ' + fgsm_acc)
@@ -48,7 +48,7 @@ def run(arch, model_path, ACC=False, FGSM=False, PGD=False, init_channels='36', 
 
   if PGD:
     attack = 'PGD'
-    attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
+    attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary', '--batch_size', batch_size]
     attack_args += ['--gpu', gpu, '--model_path', model_path, '--epsilon', epsilon, '--step_num', step_num]
     attack_args += ['--attack', attack, '--arch', arch, '--init_channels', init_channels]
     proc = subprocess.check_output(attack_args)
@@ -60,17 +60,19 @@ def run(arch, model_path, ACC=False, FGSM=False, PGD=False, init_channels='36', 
 
 
 
-# model_paths = ['randomInit_inner_acc1_outer_adv_nop_mgda_abs10/channel36_cifar10/model{:03d}.pt'.format(i) for i in range(590, 600, 10)]
-model_paths = ['models/abs10_best.pt'] #['models/DARTS_V2_c30_best.pt']
-arch = 'randomInit_inner_acc1_outer_adv_nop_mgda_abs10' #'DARTS_V2'
-epsilons = [str(x) for x in range(1,2)]
+model_paths = ['randomInit_inner_acc1_outer_adv_nop_mgda_abs20/channel36_cifar10/model{:03d}.pt'.format(i) for i in range(500, 600, 10)]
+# model_paths = ['randomInit_inner_acc1_outer_adv_nop_mgda_abs30/channel36_cifar10/model530.pt']
+# model_paths = ['models/abs30_best.pt'] #['models/DARTS_V2_c30_best.pt']
+arch = 'randomInit_inner_acc1_outer_adv_nop_mgda_abs20' #'DARTS_V2'
+epsilons = [str(x) for x in range(1,3)]
 
 all_results = []
-for epsilon in epsilons:
-  logging.info('epsilon = ' + epsilon)
-  for model_path in model_paths:
-    results = run(arch, model_path, ACC=False, FGSM=True, PGD=False, epsilon=epsilon, step_num='7', init_channels='36')
-    all_results.append(results)
+for model_path in model_paths:
+  model_results = [model_path.split('/')[-1]]
+  for epsilon in epsilons:
+    results = run(arch, model_path, ACC=False, FGSM=False, PGD=True, epsilon=epsilon, step_num='7', init_channels='36')
+    model_results += results
+  all_results.append(model_results)
 
 df = pd.DataFrame(all_results)
 print(df)
