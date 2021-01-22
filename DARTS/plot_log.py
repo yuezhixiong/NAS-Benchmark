@@ -129,8 +129,9 @@ def plot_entropy(path, temperature='A'):
     fig.legend()
     fig.savefig(os.path.join(fig_path, 'plot_entropy.pdf'), format='pdf')
 
-path = os.path.join('/home/yuezx/NAS-Benchmark/DARTS/', args.save)
-fig_path = os.path.join('/home/yuezx/NAS-Benchmark/DARTS/', args.save)
+local_path = ''
+path = os.path.join(local_path, args.save)
+fig_path = os.path.join(local_path, args.save)
 os.makedirs(fig_path, exist_ok=True)
 # plot_entropy(path, temperature='none')
 plot_loss_alpha(path)
