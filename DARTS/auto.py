@@ -119,9 +119,9 @@ else:
     mgda = 1 # 1
     adv_outer = 1
     datasets = ['cifar10'] #, 'cifar100']
-    nop_later = 0 # 30
-    adv_later = 0 # 30
-    epoch = 50
+    nop_later = 50 # 30
+    adv_later = 50 # 30
+    epoch = 1000
 
     big_alpha = 0
     search = 1
