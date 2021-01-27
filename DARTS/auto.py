@@ -36,6 +36,7 @@ def run(config):
     nop_outer = config.getboolean('outer', 'nop_outer')
     adv_outer = config.getboolean('outer', 'adv_outer')
     mgda = config.getboolean('outer', 'mgda')
+    grad_norm = config.get('outer', 'grad_norm')
     constrain = config.get('outer', 'constrain')
     constrain_min = config.get('outer', 'constrain_min')
     temperature = config.get('outer', 'temperature')
@@ -60,7 +61,7 @@ def run(config):
             search_args += ['--adv_outer']
         if mgda:
             search_args += ['--MGDA']
-        search_args += ['--constrain', constrain, '--constrain_min', constrain_min, '--epochs', epoch]
+        search_args += ['--constrain', constrain, '--constrain_min', constrain_min, '--epochs', epoch, '--grad_norm', grad_norm]
         search_args += ['--temperature', temperature, '--fx', fx, '--dataset', dataset, '--nop_later', nop_later, '--adv_later', adv_later]
         if big_alpha:
             search_args += ['--big_alpha']
@@ -112,21 +113,22 @@ else:
     adv = 'fast'
     adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
     constrain = 'abs' # min, abs
-    constrain_mins = [1] # [2, 3] # [1, 2, 3]
+    constrain_mins = [3, 2, 1] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
-    mgda = 1 # 1
     adv_outer = 1
-    datasets = ['cifar10'] #, 'cifar100']
+    mgda = 1 # 1
+    grad_norm = 'loss' # none, l2, loss+
     nop_later = 50 # 30
     adv_later = 50 # 30
-    epoch = 1000
+    epoch = 50
 
     big_alpha = 0
     search = 1
-    train = 0
-    test_adv = 0
+    train = 1
+    test_adv = 1
+    datasets = ['cifar10'] #, 'cifar100']
 
     for dataset in datasets:
         for adv_lambda, acc_lambda in adv_acc_values:
@@ -169,12 +171,15 @@ else:
                         config_name += '_advLater' + str(adv_later)
                     if epoch != 50:
                         config_name += '_epoch' + str(epoch)
+                    if grad_norm != 'none':
+                        config_name += '_gn' + grad_norm
                     
                     # save_path = os.path.join(logpath, config_name)
 
                     config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'big_alpha':big_alpha, 'dataset':dataset, 'epoch':epoch},
                                     'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
-                                    'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 'temperature':temperature, 'fx':fx, 'nop_later':nop_later, 'adv_later':adv_later}}
+                                    'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 
+                                             'temperature':temperature, 'fx':fx, 'nop_later':nop_later, 'adv_later':adv_later, 'grad_norm':grad_norm}}
                     
                     config_parser.read_dict(config_dict)
                     config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))

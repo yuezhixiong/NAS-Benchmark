@@ -53,7 +53,7 @@ parser.add_argument('--nop_outer', default=False, action='store_true', help='opt
 parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'both', 'abs', 'none'], help='use constraint in model size')
 # parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
-parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
+parser.add_argument('--grad_norm', type=str, default='none', choices=['none', 'loss+', 'loss', 'l2'], help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
 parser.add_argument('--constrain_min', type=float, default=0, help='constrain the model size')
 parser.add_argument('--constrain_max', type=float, default=0, help='constrain the model size')

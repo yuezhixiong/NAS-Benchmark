@@ -189,14 +189,14 @@ class Architect(object):
     # dalpha_param = [v.grad for v in unrolled_model.arch_parameters()]
     # ---- param loss end ----
     
-    if self.args.grad_norm:
-      gn = gradient_normalizers(grads, loss_data, normalization_type='l2') # loss+, loss, l2
-    else:
-      gn = gradient_normalizers(grads, loss_data, normalization_type='none')
+    # if self.args.grad_norm != 'none':
+    gn = gradient_normalizers(grads, loss_data, normalization_type=self.args.grad_norm) # loss+, loss, l2
+    # else:
+    #   gn = gradient_normalizers(grads, loss_data, normalization_type='none')
 
     for t in grads:
       for gr_i in range(len(grads[t])):
-        grads[t][gr_i] = grads[t][gr_i] / gn[t]
+        grads[t][gr_i] = grads[t][gr_i] / (gn[t]+1e-7)
     
     # ---- MGDA -----
     if self.args.MGDA and (len(grads)>1):
