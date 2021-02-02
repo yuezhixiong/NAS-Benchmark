@@ -188,7 +188,7 @@ def gradient_normalizers(grads, losses, normalization_type):
     elif normalization_type == 'loss':
         for t in grads:
             gn[t] = losses[t]
-    elif normalization_type == 'loss+':
+    elif normalization_type == 'lossplus':
         for t in grads:
             gn[t] = losses[t] * np.sqrt(np.sum([gr.pow(2).sum().data[0] for gr in grads[t]]))
     elif normalization_type == 'none':
