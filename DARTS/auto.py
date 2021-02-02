@@ -113,13 +113,13 @@ else:
     adv = 'fast'
     adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
     constrain = 'abs' # min, abs
-    constrain_mins = [4, 3, 2, 1] # [2, 3] # [1, 2, 3]
+    constrain_mins = [2, 1] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
     adv_outer = 1
-    mgda = 1 # 1
-    grad_norms = ['l2', 'loss+', 'loss'] #'loss' # none, l2, loss+
+    mgda = 0 # 1
+    grad_norms = ['none'] #['l2', 'loss'] #'loss' # none, l2, loss+
     nop_later = 0 # 30
     adv_later = 0 # 30
     epoch = 50
