@@ -113,7 +113,7 @@ else:
     adv = 'fast'
     adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
     constrain = 'abs' # min, abs
-    constrain_mins = [2, 1] # [2, 3] # [1, 2, 3]
+    constrain_mins = [2] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
@@ -125,9 +125,9 @@ else:
     epoch = 50
 
     big_alpha = 0
-    search = 1
-    train = 0
-    test_adv = 0
+    search = 0
+    train = 1
+    test_adv = 1
     datasets = ['cifar10'] #, 'cifar100']
 
     for dataset in datasets:

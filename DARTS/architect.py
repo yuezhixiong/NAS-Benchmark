@@ -73,20 +73,17 @@ class Architect(object):
 
   def param_number(self, unrolled_model):
     tau = self.tau
-    # tau = 0.001
     constrain = self.args.constrain
     constrain_max = Variable(torch.Tensor([self.args.constrain_max])).cuda()
     constrain_min = Variable(torch.Tensor([self.args.constrain_min])).cuda()
     def compute_u(C, is_reduction):
       a = np.array([0, 0, 0, 0, 2*(C**2+11*C), 2*(C**2+27*C), C**2+11*C, C**2+27*C]).reshape(8, 1)
-#       u = torch.from_numpy(np.repeat(a, 14, axis=1))
       u = np.repeat(a, 14, axis=1)
       if is_reduction:
         u[3, :] = u[3, :] + np.array([C**2+2*C, C**2+2*C, C**2+2*C, C**2+2*C, 0, C**2+2*C, C**2+2*C, 0, 0, C**2+2*C, C**2+2*C, 0, 0, 0])
       return Variable(torch.from_numpy(u)).float().cuda()
     loss = 0
-    # u = torch.from_numpy(np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]))
-    # C_list = [C, C, 2*C, 2*C, 2*C, 4*C, 4*C, 4*C]
+
     C_list = unrolled_model._C_list
     for i in range(unrolled_model._layers):
       if unrolled_model.cells[i].reduction:
@@ -106,7 +103,6 @@ class Architect(object):
           alpha = F.softmax(unrolled_model.arch_parameters()[0]/tau, dim=-1)
 
         u = compute_u(C_list[i], is_reduction=False)
-      # loss += (2 * torch.mul(alpha, u.t()).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
       loss += torch.mul(alpha, u.t()).sum()
     # print(alpha[0].data.cpu().numpy())
     
