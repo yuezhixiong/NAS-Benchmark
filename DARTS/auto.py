@@ -91,12 +91,12 @@ def run(config):
     model_path = '{}/channel{}_{}/best_model.pt'.format(save, init_channels, dataset)
     if test_adv:
         logging.info("now running test_adv")
-        attack = 'FGSM'
-        attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
-        attack_args += ['--gpu', gpu, '--model_path', model_path]
-        attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
-        proc = subprocess.check_output(attack_args)
-        logging.info('FGSM_acc ' + proc.decode('utf-8').split()[-1])
+        # attack = 'FGSM'
+        # attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
+        # attack_args += ['--gpu', gpu, '--model_path', model_path]
+        # attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
+        # proc = subprocess.check_output(attack_args)
+        # logging.info('FGSM_acc ' + proc.decode('utf-8').split()[-1])
 
         attack = 'PGD'
         attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
@@ -113,22 +113,22 @@ else:
     adv = 'fast'
     adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
     constrain = 'abs' # min, abs
-    constrain_mins = [2] # [2, 3] # [1, 2, 3]
+    constrain_mins = [3, 2, 1] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
     adv_outer = 1
-    mgda = 0 # 1
+    mgda = 1 # 1
     grad_norms = ['none'] #['l2', 'loss'] #'loss' # none, l2, loss+
     nop_later = 0 # 30
     adv_later = 0 # 30
     epoch = 50
 
     big_alpha = 0
-    search = 0
+    search = 1
     train = 1
     test_adv = 1
-    datasets = ['cifar10'] #, 'cifar100']
+    datasets = ['cifar100'] #, 'cifar100']
 
     for dataset in datasets:
         for adv_lambda, acc_lambda in adv_acc_values:

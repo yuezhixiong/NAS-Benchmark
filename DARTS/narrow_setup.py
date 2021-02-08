@@ -2,16 +2,17 @@ import os
 import sys
 import time, re
 import numpy as np
+from datetime import datetime
  
 cmd = 'python auto.py'
 memo_required = 16000
  
-def gpu_info():
-    gpu_status = os.popen('nvidia-smi | grep %').read().split('|')
-    gpu_memory = int(gpu_status[2].split('/')[0].split('M')[0].strip())
-    gpu_power = int(gpu_status[1].split('   ')[-1].split('/')[0].split('W')[0].strip())
-    # print(gpu_status)
-    return gpu_power, gpu_memory
+# def gpu_info():
+#     gpu_status = os.popen('nvidia-smi | grep %').read().split('|')
+#     gpu_memory = int(gpu_status[2].split('/')[0].split('M')[0].strip())
+#     gpu_power = int(gpu_status[1].split('   ')[-1].split('/')[0].split('W')[0].strip())
+#     # print(gpu_status)
+#     return gpu_power, gpu_memory
  
 def free_gpu():
     gpu_memo = os.popen('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free').read()
@@ -23,10 +24,11 @@ def free_gpu():
         gpu_id = np.argmax(gpu_memo)
     return gpu_id
 
-def narrow_setup(interval=2):
+def narrow_setup(interval=10):
     # gpu_power, gpu_memory = gpu_info()
     gpu_id = free_gpu()
     while gpu_id < 0:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         gpu_id = free_gpu()
         time.sleep(interval)
 
