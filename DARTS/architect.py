@@ -20,18 +20,18 @@ class Architect(object):
         lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
     self.args = args
 
-  def fx_objective(self, x):
-    if self.args.fx == 'Sqr':
-      fx = x**2
-    elif self.args.fx == 'Cub':
-      fx = x**3
-    elif self.args.fx == 'Exp':
-      fx = np.exp(x)
-    elif self.args.fx == 'Tan':
-      fx = np.tanh(x)
-    else:
-      fx = x
-    return fx
+  # def fx_objective(self, x):
+  #   if self.args.fx == 'Sqr':
+  #     fx = x**2
+  #   elif self.args.fx == 'Cub':
+  #     fx = x**3
+  #   elif self.args.fx == 'Exp':
+  #     fx = np.exp(x)
+  #   elif self.args.fx == 'Tan':
+  #     fx = np.tanh(x)
+  #   else:
+  #     fx = x
+  #   return fx
 
 
   def _compute_unrolled_model(self, input, target, eta, network_optimizer):
@@ -133,21 +133,8 @@ class Architect(object):
 
     # ---- acc loss ----
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
-    # if entropy:
-    #   entropy_loss = -1.0 * (F.softmax(unrolled_model.arch_parameters()[0], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[0], dim=1)).sum() - \
-    #                 (F.softmax(unrolled_model.arch_parameters()[1], dim=1)*F.log_softmax(unrolled_model.arch_parameters()[1], dim=1)).sum()
-    #   unrolled_loss = unrolled_loss + lambda_entropy * entropy_loss
     loss_data['acc'] = unrolled_loss.data[0]
-    loss_data['acc'] = self.fx_objective(loss_data['acc'])
-    if self.args.adv_outer:
-      unrolled_loss.backward(retain_graph=True)
-    else:
-      unrolled_loss.backward(retain_graph=False)
-
-    grads['acc'] = []
-    for param in unrolled_model.arch_parameters():
-      if param.grad is not None:
-          grads['acc'].append(Variable(param.grad.data.clone(), requires_grad=False))
+    grads['acc'] = list(torch.autograd.grad(unrolled_loss, unrolled_model.arch_parameters(), retain_graph=True))
     # ---- acc loss end ----
 
     # ---- adv loss ----
@@ -161,14 +148,8 @@ class Architect(object):
       adv_input = Variable(input_valid.data + delta, requires_grad=False).cuda()
       self.optimizer.zero_grad()
       unrolled_loss_adv = unrolled_model._loss(adv_input, target_valid)
-      unrolled_loss_adv.backward()
+      grads['adv'] = list(torch.autograd.grad(unrolled_loss_adv, unrolled_model.arch_parameters(), retain_graph=True))
       loss_data['adv'] = unrolled_loss_adv.data[0]
-      loss_data['adv'] = self.fx_objective(loss_data['adv'])
-      
-      grads['adv'] = []
-      for param in unrolled_model.arch_parameters():
-        if param.grad is not None:
-            grads['adv'].append(Variable(param.grad.data.clone(), requires_grad=False))
     # ---- adv loss end ----
 
     # ---- param loss ----
@@ -176,19 +157,19 @@ class Architect(object):
       self.optimizer.zero_grad()
       param_loss = self.param_number(unrolled_model)
       loss_data['nop'] = param_loss.data[0]
-      loss_data['nop'] = self.fx_objective(loss_data['nop'])
-      param_loss.backward()
-      grads['nop'] = []
-      for param in unrolled_model.arch_parameters():
-        if param.grad is not None:
-            grads['nop'].append(Variable(param.grad.data.clone(), requires_grad=False))
-    # dalpha_param = [v.grad for v in unrolled_model.arch_parameters()]
+      grads['nop'] = list(torch.autograd.grad(param_loss, unrolled_model.arch_parameters(), retain_graph=True))
     # ---- param loss end ----
     
-    # if self.args.grad_norm != 'none':
+    # ---- ood loss ----
+    if self.args.ood_outer:
+      self.optimizer.zero_grad()
+      ood_logits = unrolled_model.forward(ood_input)
+      ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
+      loss_data['ood'] = ood_loss.data[0]
+      grads['ood'] = list(torch.autograd.grad(ood_loss, unrolled_model.arch_parameters(), retain_graph=True))
+    # ---- ood loss end ----
+
     gn = gradient_normalizers(grads, loss_data, normalization_type=self.args.grad_norm) # loss+, loss, l2
-    # else:
-    #   gn = gradient_normalizers(grads, loss_data, normalization_type='none')
 
     for t in grads:
       for gr_i in range(len(grads[t])):
@@ -204,14 +185,13 @@ class Architect(object):
     loss = 0
     for kk, t in enumerate(grads):
       if t == 'acc':
-        unrolled_loss = unrolled_model._loss(input_valid, target_valid)
         loss += float(sol[kk]) * unrolled_loss
       elif t == 'adv':
-        unrolled_loss_adv = unrolled_model._loss(adv_input, target_valid)
         loss += float(sol[kk]) * unrolled_loss_adv
       elif t == 'nop':
-        param_loss = self.param_number(unrolled_model)
         loss += float(sol[kk]) * param_loss
+      elif t == 'ood':
+        loss += float(sol[kk]) * ood_loss
     self.optimizer.zero_grad()
     loss.backward()
     # ---- MGDA end -----
