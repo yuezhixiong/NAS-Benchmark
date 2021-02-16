@@ -5,6 +5,42 @@ import shutil
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 
+####### ood start ######
+def DE(in_prob, out_prob):
+    if in_prob.min() > out_prob.max():
+        DE = 0
+    elif in_prob.max() < out_prob.min():
+        DE = 1
+    else:
+#         if in_prob.min() < out_prob.min():
+#             start = out_prob.min()
+#             end = in_prob.max()
+#         else:
+#             start = in_prob.min()
+#             end = out_prob.max()
+#         for t in np.linspace(start, end, 10000):
+        DE = 1
+        for t in np.sort(in_prob):
+            DE_ = (np.sum(in_prob<t) + np.sum(out_prob>t))/(in_prob.shape[0]+out_prob.shape[0])
+            DE = min(DE, DE_)
+    return DE
+
+def fpr_tpr95(in_prob, out_prob):
+    if in_prob.min() > out_prob.max():
+        fpr = 0
+    elif in_prob.max() < out_prob.min():
+        fpr = 1
+    else:
+        fpr_ = 0
+        total = 0
+        for t in np.sort(in_prob):
+            tpr = np.sum(in_prob>=t)/in_prob.shape[0]
+            if tpr > 0.9495 and tpr < 0.9505:
+                fpr_ += np.sum(out_prob>t)/out_prob.shape[0]
+                total += 1
+        fpr = fpr_/total
+    return fpr
+####### ood end ######
 
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)

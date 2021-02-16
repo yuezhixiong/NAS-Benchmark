@@ -55,6 +55,9 @@ parser.add_argument('--constrain', type=str, default='none', choices=['max', 'mi
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
 parser.add_argument('--grad_norm', type=str, default='none', choices=['none', 'lossplus', 'loss', 'l2'], help='use gradient normalization in MGDA')
 parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
+parser.add_argument('--ood_outer', default=False, action='store_true', help='use ood in outer loop')
+parser.add_argument('--flp_outer', default=False, action='store_true', help='use flp in outer loop')
+
 parser.add_argument('--constrain_min', type=float, default=0, help='constrain the model size')
 parser.add_argument('--constrain_max', type=float, default=0, help='constrain the model size')
 # parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
@@ -145,6 +148,15 @@ def main():
             sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
             pin_memory=True, num_workers=1)
 
+    ood_queue = None
+    if args.ood_outer:
+        ood_transform, _ = utils._data_transforms_svhn(args)
+        ood_data = dset.SVHN(root=args.data, split='train', download=True, transform=ood_transform)
+
+        ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
+                    pin_memory=True, num_workers=1)
+
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, float(args.epochs), eta_min=args.learning_rate_min)
 
@@ -171,7 +183,7 @@ def main():
         alphas_reduces.append(alphas_reduce)
 
         # training
-        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch)
+        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch, ood_queue)
         logging.info('train_acc %f', train_acc)
         np.save(os.path.join(args.save, 'alphas_normal.npy'), alphas_normals)
         np.save(os.path.join(args.save, 'alphas_reduce.npy'), alphas_reduces)
@@ -184,7 +196,7 @@ def main():
 
         utils.save(model, os.path.join(args.save, 'weights.pt'))
 
-def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch):
+def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch, ood_queue):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
@@ -226,14 +238,22 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         n = input.size(0)
 
         input1 = Variable(input, requires_grad=False).cuda()
-        target = Variable(target, requires_grad=False).cuda(async=True)
+        target = Variable(target, requires_grad=False).cuda()
 
         # get a random minibatch from the search queue with replacement
         input_search, target_search = next(iter(valid_queue))
         input_search = Variable(input_search, requires_grad=False).cuda()
-        target_search = Variable(target_search, requires_grad=False).cuda(async=True)
+        target_search = Variable(target_search, requires_grad=False).cuda()
+        # get ood data batch
+        input_ood = None
+        if args.ood_outer:
+            input_ood, target_ood = next(iter(ood_queue))
+            input_ood = Variable(input_ood, requires_grad=False).cuda()
+            target_ood = Variable(target_ood, requires_grad=False).cuda()
         
-        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit, tau=tau, epoch=epoch)
+        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, 
+                              unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, 
+                              lower_limit=lower_limit, tau=tau, epoch=epoch, input_ood=input_ood)
         sols.append(logs.sol)
         loss_datas.append(logs.loss_data)
         # logging.info('grad_data = ' + str(logs.grad))

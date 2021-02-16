@@ -35,6 +35,8 @@ def run(config):
 
     nop_outer = config.getboolean('outer', 'nop_outer')
     adv_outer = config.getboolean('outer', 'adv_outer')
+    ood_outer = config.getboolean('outer', 'ood_outer')
+    flp_outer = config.getboolean('outer', 'flp_outer')    
     mgda = config.getboolean('outer', 'mgda')
     grad_norm = config.get('outer', 'grad_norm')
     constrain = config.get('outer', 'constrain')
@@ -59,6 +61,10 @@ def run(config):
             search_args += ['--nop_outer']
         if adv_outer:
             search_args += ['--adv_outer']
+        if ood_outer:
+            search_args += ['--ood_outer']
+        if flp_outer:
+            search_args += ['--flp_outer']
         if mgda:
             search_args += ['--MGDA']
         search_args += ['--constrain', constrain, '--constrain_min', constrain_min, '--epochs', epoch, '--grad_norm', grad_norm]
@@ -113,11 +119,13 @@ else:
     adv = 'fast'
     adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
     constrain = 'abs' # min, abs
-    constrain_mins = [2, 1] # [2, 3] # [1, 2, 3]
+    constrain_mins = [3, 2, 1] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
     adv_outer = 1
+    ood_outer = 1
+    flp_outer = 1
     mgda = 1 # 1
     grad_norms = ['none'] #['l2', 'loss'] #'loss' # none, l2, loss+
     nop_later = 0 # 30
@@ -156,6 +164,10 @@ else:
                             config_name += '_adv'
                         if nop_outer:
                             config_name += '_nop'
+                        if ood_outer:
+                            config_name += '_ood'
+                        if flp_outer:
+                            config_name += '_flp'
                         if mgda:
                             config_name += '_mgda'
                         if constrain != 'none':
@@ -178,7 +190,7 @@ else:
 
                         config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'big_alpha':big_alpha, 'dataset':dataset, 'epoch':epoch},
                                         'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
-                                        'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 
+                                        'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'ood_outer':ood_outer, 'flp_outer':flp_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 
                                                 'temperature':temperature, 'fx':fx, 'nop_later':nop_later, 'adv_later':adv_later, 'grad_norm':grad_norm}}
                         
                         config_parser.read_dict(config_dict)
