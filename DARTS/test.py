@@ -15,6 +15,7 @@ import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from model import NetworkCIFAR as Network
 
+from sklearn.metrics import precision_recall_curve, auc, roc_auc_score
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
@@ -75,17 +76,19 @@ def main():
   logging.info('test_acc %f', test_acc)
 
 
-def infer(test_queue, model, criterion):
+def infer(test_queue, ood_queue, model, criterion):
   objs = utils.AvgrageMeter()
   top1 = utils.AvgrageMeter()
   top5 = utils.AvgrageMeter()
   model.eval()
-
+  
+  in_prob = []
   for step, (input, target) in enumerate(test_queue):
     input = Variable(input).cuda()
     target = Variable(target).cuda()
 
     logits, _ = model(input)
+    in_prob += list(torch.softmax(logits, dim=-1).max(dim=-1)[0].cpu().numpy())
     loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
@@ -96,7 +99,28 @@ def infer(test_queue, model, criterion):
 
     if step % args.report_freq == 0:
       logging.info('test %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
-
+  
+  out_prob = []
+  for step, (ood_input, _) in enumerate(ood_queue):
+    ood_input = ood_input.cuda()
+    ood_logits, _ = model(ood_input)
+    out_prob += list(torch.softmax(ood_logits, dim=-1).max(dim=-1)[0].cpu().numpy())
+    
+  in_prob, out_prob = np.array(in_prob), np.array(out_prob)
+  label = np.concatenate([np.ones_like(in_prob), np.zeros_like(out_prob)])
+  prob = np.concatenate([in_prob, out_prob])
+  # auroc
+  auroc = roc_auc_score(label, prob)
+  # aupr in
+  precision, recall, _ = precision_recall_curve(label, prob)
+  aupr_in = auc(recall, precision)
+  # aupr out
+  precision, recall, _ = precision_recall_curve(1-label, prob)
+  aupr_out = auc(recall, precision)
+  # fpr when tpr95
+  fpr = utils.fpr_tpr95(in_prob, out_prob)
+  # detection error
+  DE = utils.DE(in_prob, out_prob)
   return top1.avg, objs.avg
 
 
