@@ -218,8 +218,10 @@ def DE(in_prob, out_prob):
 #             start = in_prob.min()
 #             end = out_prob.max()
 #         for t in np.linspace(start, end, 10000):
+        DE = 1
         for t in np.sort(in_prob):
-            DE = (np.sum(in_prob<t) + np.sum(out_prob>t))/(in_prob.shape[0]+out_prob.shape[0])
+            DE_ = (np.sum(in_prob<t) + np.sum(out_prob>t))/(in_prob.shape[0]+out_prob.shape[0])
+            DE = min(DE, DE_)
     return DE
 
 def fpr_tpr95(in_prob, out_prob):
