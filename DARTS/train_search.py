@@ -45,7 +45,8 @@ parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weigh
 parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD', 'fast'], help='use FGSM/PGD advsarial training')
 parser.add_argument('--epsilon', default=2, type=int)
 parser.add_argument('--acc_lambda', default=1, type=int)
-parser.add_argument('--adv_lambda', default=1, type=int)
+parser.add_argument('--adv_lambda', default=0, type=int)
+parser.add_argument('--ood_lambda', default=0, type=int)
 parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD free adversarial training')
 
 parser.add_argument('--nop_outer', default=False, action='store_true', help='optimize number of parameter')
@@ -149,7 +150,7 @@ def main():
             pin_memory=True, num_workers=1)
 
     ood_queue = None
-    if args.ood_outer:
+    if args.ood_outer or args.ood_lambda:
         ood_transform, _ = utils._data_transforms_svhn(args)
         ood_data = dset.SVHN(root=args.data, split='train', download=True, transform=ood_transform)
 
@@ -245,15 +246,15 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False).cuda()
         # get ood data batch
-        input_ood = None
-        if args.ood_outer:
-            input_ood, target_ood = next(iter(ood_queue))
-            input_ood = Variable(input_ood, requires_grad=False).cuda()
-            target_ood = Variable(target_ood, requires_grad=False).cuda()
+        ood_input = None
+        if args.ood_outer or args.ood_lambda:
+            ood_input, ood_target = next(iter(ood_queue))
+            ood_input = Variable(ood_input, requires_grad=False).cuda()
+            ood_target = Variable(ood_target, requires_grad=False).cuda()
         
         logs = architect.step(input1, target, input_search, target_search, lr, optimizer, 
                               unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, 
-                              lower_limit=lower_limit, tau=tau, epoch=epoch, input_ood=input_ood)
+                              lower_limit=lower_limit, tau=tau, epoch=epoch, ood_input=ood_input)
         sols.append(logs.sol)
         loss_datas.append(logs.loss_data)
         # logging.info('grad_data = ' + str(logs.grad))
@@ -291,8 +292,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             logits = model(input + delta)
             loss = criterion(logits, target)
             loss.backward(retain_graph=True)
-            grad = torch.autograd.grad(loss, delta, retain_graph=False, create_graph=False)[0].detach().data
-            
+            grad = torch.autograd.grad(loss, delta, retain_graph=False, create_graph=False)[0].detach().data           
             delta = utils.clamp(delta.data + alpha * torch.sign(grad), -epsilon, epsilon)
             delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
@@ -302,6 +302,11 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
                 loss += args.acc_lambda * criterion(model(input), target)
             if args.adv_lambda:
                 loss += args.adv_lambda * criterion(model(adv_input), target)
+            if args.ood_lambda:
+                ood_logits = model(ood_input)
+                ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
+                loss += args.ood_lambda * ood_loss
+            
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
