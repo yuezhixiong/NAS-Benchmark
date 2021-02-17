@@ -31,7 +31,7 @@ parser.add_argument('--cutout_length', type=int, default=16, help='cutout length
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
-parser.add_argument('--attack', type=str, default='FGSM', help='which attack to use')
+parser.add_argument('--attack', type=str, default='PGD', help='which attack to use')
 
 parser.add_argument('--epsilon', default=1, type=int)
 parser.add_argument('--step_num', default=10, type=int, help='Step number of PGD attack')

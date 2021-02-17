@@ -32,6 +32,7 @@ def run(config):
     adv = config.get('inner', 'adv')
     adv_lambda = config.get('inner', 'adv_lambda')
     acc_lambda = config.get('inner', 'acc_lambda')
+    ood_lambda = config.get('inner', 'ood_lambda')
 
     nop_outer = config.getboolean('outer', 'nop_outer')
     adv_outer = config.getboolean('outer', 'adv_outer')
@@ -55,7 +56,7 @@ def run(config):
         logging.info("now running search")
         search_args = ['python', 'train_search.py', '--unrolled', '--cutout', '--gpu', gpu, '--save', save]
         #inner
-        search_args += ['--adv', adv, '--adv_lambda', adv_lambda, '--acc_lambda', acc_lambda]
+        search_args += ['--adv', adv, '--adv_lambda', adv_lambda, '--acc_lambda', acc_lambda, '--ood_lambda', ood_lambda]
         #outer
         if nop_outer:
             search_args += ['--nop_outer']
@@ -117,7 +118,7 @@ if args.config != 'none':
 else:
     copyfile('auto.py', os.path.join(logpath, 'auto.py'))
     adv = 'fast'
-    adv_acc_values = [(0, 1)] # [(0, 1), (1, 1)] # [(0, 1)] 
+    inner_values = [(0, 1, 1)] # adv_lambda, acc_lambda, ood_lambda
     constrain = 'abs' # min, abs
     constrain_mins = [3, 2, 1] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
@@ -139,7 +140,7 @@ else:
     datasets = ['cifar10'] #, 'cifar100']
 
     for dataset in datasets:
-        for adv_lambda, acc_lambda in adv_acc_values:
+        for adv_lambda, acc_lambda, ood_lambda in inner_values:
             for constrain_min in constrain_mins:
                 for fx in fxs:
                     for grad_norm in grad_norms:
@@ -157,6 +158,8 @@ else:
                                 config_name += '_adv' + str(adv_lambda)
                         if acc_lambda:
                             config_name += '_acc' + str(acc_lambda)
+                        if ood_lambda:
+                            config_name += '_ood' + str(ood_lambda)
 
                         config_name += '_outer'
                         
@@ -189,7 +192,7 @@ else:
                         # save_path = os.path.join(logpath, config_name)
 
                         config_dict = {'other':{'save':config_name, 'search':search, 'train':train, 'test_adv':test_adv, 'big_alpha':big_alpha, 'dataset':dataset, 'epoch':epoch},
-                                        'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda}, 
+                                        'inner':{'adv':adv, 'adv_lambda':adv_lambda, 'acc_lambda':acc_lambda, 'ood_lambda':ood_lambda}, 
                                         'outer':{'nop_outer':nop_outer, 'adv_outer':adv_outer, 'ood_outer':ood_outer, 'flp_outer':flp_outer, 'mgda':mgda, 'constrain':constrain, 'constrain_min':constrain_min, 
                                                 'temperature':temperature, 'fx':fx, 'nop_later':nop_later, 'adv_later':adv_later, 'grad_norm':grad_norm}}
                         

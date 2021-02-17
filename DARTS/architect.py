@@ -20,18 +20,18 @@ class Architect(object):
         lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
     self.args = args
 
-  # def fx_objective(self, x):
-  #   if self.args.fx == 'Sqr':
-  #     fx = x**2
-  #   elif self.args.fx == 'Cub':
-  #     fx = x**3
-  #   elif self.args.fx == 'Exp':
-  #     fx = np.exp(x)
-  #   elif self.args.fx == 'Tan':
-  #     fx = np.tanh(x)
-  #   else:
-  #     fx = x
-  #   return fx
+  def fx_objective(self, x):
+    if self.args.fx == 'Sqr':
+      fx = x**2
+    elif self.args.fx == 'Cub':
+      fx = x**3
+    elif self.args.fx == 'Exp':
+      fx = np.exp(x)
+    elif self.args.fx == 'Tan':
+      fx = np.tanh(x)
+    else:
+      fx = x
+    return fx
 
 
   def _compute_unrolled_model(self, input, target, eta, network_optimizer):
@@ -62,7 +62,7 @@ class Architect(object):
     #   self._backward_step_unrolled(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
     # else:
     #     self._backward_step(input_valid, target_valid)
-    self.ood_input = kwargs.get('input_ood')
+    self.ood_input = kwargs.get('ood_input')
     self.tau = kwargs.get('tau')
     logs = self._backward_step(input_train, target_train, input_valid, target_valid, eta, network_optimizer)
     self.optimizer.step()
