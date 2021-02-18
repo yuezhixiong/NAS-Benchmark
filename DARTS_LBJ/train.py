@@ -20,7 +20,7 @@ from model import NetworkCIFAR as Network
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
-parser.add_argument('--batch_size', type=int, default=32, help='batch size') # 96
+parser.add_argument('--batch_size', type=int, default=96, help='batch size') # 96
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
@@ -42,7 +42,10 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.save = '{}/auxiliary{}_cutout{}_batchsize{}_channel{}_{}'.format(args.save, args.auxiliary_weight, args.cutout_length, args.batch_size, args.init_channels, args.dataset)
+if not os.path.isdir(args.save):
+  os.makedirs(args.save)
+args.save = '{}/channel{}_{}'.format(args.save, args.init_channels, args.dataset)
+
 print(args.save)
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
@@ -126,10 +129,15 @@ def main():
 
     valid_acc, valid_obj = infer(valid_queue, model, criterion)
     logging.info('valid_acc %f', valid_acc)
+
+    if epoch%10 == 0:
+        utils.save(model, os.path.join(args.save, 'model{:03d}.pt'.format(epoch)))
     if valid_acc > best_acc:
       best_acc = valid_acc
       utils.save(model, os.path.join(args.save, 'best_model.pt'))
     logging.info('best_acc %f', best_acc)
+  
+  print('{:.2f}'.format(best_acc))
       
 
 def train(train_queue, model, criterion, optimizer):
@@ -140,7 +148,8 @@ def train(train_queue, model, criterion, optimizer):
 
   for step, (input, target) in enumerate(train_queue):
     input = Variable(input).cuda()
-    target = Variable(target).cuda(async=True)
+    target = Variable(target).cuda()
+
 
     optimizer.zero_grad()
     logits, logits_aux = model(input)
@@ -172,7 +181,7 @@ def infer(valid_queue, model, criterion):
 
   for step, (input, target) in enumerate(valid_queue):
     input = Variable(input, volatile=True).cuda()
-    target = Variable(target, volatile=True).cuda(async=True)
+    target = Variable(target, volatile=True).cuda()
 
     logits, _ = model(input)
     loss = criterion(logits, target)

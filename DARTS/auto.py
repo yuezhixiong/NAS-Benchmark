@@ -125,7 +125,7 @@ else:
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
     adv_outer = 1
-    ood_outer = 1
+    ood_outer = 0
     flp_outer = 1
     mgda = 1 # 1
     grad_norms = ['none'] #['l2', 'loss'] #'loss' # none, l2, loss+

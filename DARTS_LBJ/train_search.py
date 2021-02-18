@@ -42,17 +42,31 @@ parser.add_argument('--train_portion', type=float, default=0.5, help='portion of
 parser.add_argument('--unrolled', action='store_true', default=False, help='use one-step unrolled validation loss')
 parser.add_argument('--arch_learning_rate', type=float, default=3e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD'], help='use FGSM/PGD advsarial training')
+parser.add_argument('--adv', type=str, default='none', choices=['none', 'FGSM', 'PGD', 'fast'], help='use FGSM/PGD advsarial training')
 parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--acc_lambda', default=1, type=int)
+parser.add_argument('--adv_lambda', default=0, type=int)
+parser.add_argument('--ood_lambda', default=0, type=int)
 parser.add_argument('--step_num', type=int, default=5, help='step size m for PGD free adversarial training')
 
-parser.add_argument('--nop', default=False, action='store_true', help='optimize number of parameter')
-parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
-parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
-parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
+parser.add_argument('--nop_outer', default=False, action='store_true', help='optimize number of parameter')
+# parser.add_argument('--entropy', default=False, action='store_true', help='use entropy in arch softmax')
+parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'both', 'abs', 'none'], help='use constraint in model size')
+# parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
 parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
-parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
-parser.add_argument('--outer', default=False, action='store_true', help='use adv in outer loop')
+parser.add_argument('--grad_norm', type=str, default='none', choices=['none', 'lossplus', 'loss', 'l2'], help='use gradient normalization in MGDA')
+parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
+parser.add_argument('--ood_outer', default=False, action='store_true', help='use ood in outer loop')
+parser.add_argument('--flp_outer', default=False, action='store_true', help='use flp in outer loop')
+
+parser.add_argument('--constrain_min', type=float, default=0, help='constrain the model size')
+parser.add_argument('--constrain_max', type=float, default=0, help='constrain the model size')
+# parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
+parser.add_argument('--temperature', type=str, default='none', choices=['none', 'A', 'B', 'C', 'D', 'GumbelA', 'GumbelB'], help='use tau in alpha softmax of param_loss')
+parser.add_argument('--big_alpha', default=False, action='store_true', help='use big_alpha initialization in search')
+parser.add_argument('--fx', type=str, default='none', choices=['none', 'Sqr', 'Cub', 'Exp', 'Tan'], help='use fx transformation in fx_objective function before backward')
+parser.add_argument('--nop_later', type=int, default=0, help='add nop loss after n epoch in search')
+parser.add_argument('--adv_later', type=int, default=0, help='add adv loss after n epoch in search')
 args = parser.parse_args()
 
 # args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
@@ -64,6 +78,10 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
+sols = []
+loss_datas = []
+alphas_normals = []
+alphas_reduces = []
 
 def main():
     if not torch.cuda.is_available():
@@ -72,6 +90,7 @@ def main():
 
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
+    torch.set_num_threads(8)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
     cudnn.enabled=True
@@ -97,10 +116,15 @@ def main():
         imagenet_train_dir = '/data/dataset/imagenet/ILSVRC2012_img_train_caffemapping/'
         train_data = dset.ImageFolder(imagenet_train_dir, transform=train_transform)
 
-
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.cuda()
-    model = Network(args.init_channels, class_num, args.layers, criterion)
+
+    tau = 1
+    if args.temperature == 'none':
+        tau = 1
+    else:
+        tau = 0.1
+    model = Network(args.init_channels, class_num, args.layers, criterion, tau=tau, big_alpha=args.big_alpha)
     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
@@ -111,7 +135,6 @@ def main():
             weight_decay=args.weight_decay)
 
 
-
     num_train = len(train_data)
     indices = list(range(num_train))
     split = int(np.floor(args.train_portion * num_train))
@@ -119,12 +142,21 @@ def main():
     train_queue = torch.utils.data.DataLoader(
             train_data, batch_size=args.batch_size,
             sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-            pin_memory=True, num_workers=2)
+            pin_memory=True, num_workers=1)
 
     valid_queue = torch.utils.data.DataLoader(
             train_data, batch_size=args.batch_size,
             sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
-            pin_memory=True, num_workers=2)
+            pin_memory=True, num_workers=1)
+
+    ood_queue = None
+    if args.ood_outer or args.ood_lambda:
+        ood_transform, _ = utils._data_transforms_svhn(args)
+        ood_data = dset.SVHN(root=args.data, split='train', download=True, transform=ood_transform)
+
+        ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
+                    pin_memory=True, num_workers=1)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, float(args.epochs), eta_min=args.learning_rate_min)
@@ -135,6 +167,7 @@ def main():
 
     architect = Architect(model, args)
 
+
     for epoch in range(args.epochs):
         scheduler.step()
         lr = scheduler.get_lr()[0]
@@ -143,9 +176,20 @@ def main():
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
+        # print(model.alphas_normal.data.cpu().numpy())
+        alphas_normal = F.softmax(model.alphas_normal/tau, dim=-1).data.cpu().numpy()
+        logging.info('alphas_normal[0]: '+str(alphas_normal[0]))
+        alphas_normals.append(alphas_normal)
+        alphas_reduce = F.softmax(model.alphas_reduce/tau, dim=-1).data.cpu().numpy()
+        alphas_reduces.append(alphas_reduce)
+
         # training
-        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args)
+        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch, ood_queue)
         logging.info('train_acc %f', train_acc)
+        np.save(os.path.join(args.save, 'alphas_normal.npy'), alphas_normals)
+        np.save(os.path.join(args.save, 'alphas_reduce.npy'), alphas_reduces)
+        np.save(os.path.join(args.save, 'sols.npy'), sols)
+        np.save(os.path.join(args.save, 'loss_data.npy'), loss_datas)
 
         # validation
         valid_acc, valid_obj = infer(valid_queue, model, criterion)
@@ -153,13 +197,7 @@ def main():
 
         utils.save(model, os.path.join(args.save, 'weights.pt'))
 
-        print(F.softmax(model.alphas_normal, dim=-1))
-        print(F.softmax(model.alphas_reduce, dim=-1))
-
-def clamp(X, lower_limit, upper_limit):
-    return torch.max(torch.min(X, upper_limit), lower_limit)
-
-def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args):
+def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, args, epoch, ood_queue):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
@@ -183,24 +221,44 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
     lower_limit = ((0 - mean)/ std).cuda()
     epsilon = ((args.epsilon / 255.) / std).cuda()
 
+    if args.temperature == 'none':
+        tau = 1
+    elif args.temperature == 'A':
+        tau = 0.1
+    elif args.temperature == 'B':
+        tau = 1 / 10**(epoch//10)
+    elif args.temperature=='GumbelA':
+        tau = 0.1
+    elif args.temperature=='GumbelB':
+        tau = 1 / 10**(epoch//10)
+
+    logging.info('temperature tau %f', tau)
+
     for step, (input, target) in enumerate(train_queue):
         model.train()
         n = input.size(0)
 
         input1 = Variable(input, requires_grad=False).cuda()
-        target = Variable(target, requires_grad=False).cuda(async=True)
+        target = Variable(target, requires_grad=False).cuda()
 
         # get a random minibatch from the search queue with replacement
         input_search, target_search = next(iter(valid_queue))
         input_search = Variable(input_search, requires_grad=False).cuda()
-        target_search = Variable(target_search, requires_grad=False).cuda(async=True)
+        target_search = Variable(target_search, requires_grad=False).cuda()
+        # get ood data batch
+        ood_input = None
+        if args.ood_outer or args.ood_lambda:
+            ood_input, ood_target = next(iter(ood_queue))
+            ood_input = Variable(ood_input, requires_grad=False).cuda()
+            ood_target = Variable(ood_target, requires_grad=False).cuda()
         
-        if args.outer:
-            architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, lower_limit=lower_limit)
-        else:
-            logs = architect.step(input1, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
-            logging.info('sol = ' + str(logs.sol))
-            logging.info('loss_data = ' + str(logs.loss_data))
+        logs = architect.step(input1, target, input_search, target_search, lr, optimizer, 
+                              unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, 
+                              lower_limit=lower_limit, tau=tau, epoch=epoch, ood_input=ood_input)
+        sols.append(logs.sol)
+        loss_datas.append(logs.loss_data)
+        # logging.info('grad_data = ' + str(logs.grad))
+        print(args.save)
 
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
@@ -213,15 +271,46 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             loss.backward(retain_graph=True)
             grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
             
-            delta = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
-            delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
+            delta = utils.clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+            delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
             adv_input = Variable(input.data + delta, requires_grad=False).cuda()
 
-            loss = criterion(model(adv_input), target) # + criterion(model(input), target)
+            loss = args.acc_lambda * criterion(model(input), target) + args.adv_lambda * criterion(model(adv_input), target)
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
             optimizer.step()
+
+        elif args.adv == 'fast':
+            input = Variable(input, requires_grad=True).cuda()
+
+            alpha = epsilon * 1.25
+            delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
+            delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
+            delta = Variable(delta, requires_grad=True).cuda()
+
+            logits = model(input + delta)
+            loss = criterion(logits, target)
+            loss.backward(retain_graph=True)
+            grad = torch.autograd.grad(loss, delta, retain_graph=False, create_graph=False)[0].detach().data           
+            delta = utils.clamp(delta.data + alpha * torch.sign(grad), -epsilon, epsilon)
+            delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
+            adv_input = Variable(input.data + delta, requires_grad=False).cuda()
+
+            loss = 0
+            if args.acc_lambda:
+                loss += args.acc_lambda * criterion(model(input), target)
+            if args.adv_lambda:
+                loss += args.adv_lambda * criterion(model(adv_input), target)
+            if args.ood_lambda:
+                ood_logits = model(ood_input)
+                ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
+                loss += args.ood_lambda * ood_loss
+            
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+            optimizer.step()            
         
         elif args.adv == 'PGD':
             # adv_input = Variable(input, requires_grad=True).cuda()
@@ -241,8 +330,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
                 # grad_adv = adv_input.grad.detach().data
                 # print(grad_adv)
                 delta = delta + epsilon * torch.sign(grad_adv)
-                delta = clamp(delta, -epsilon, epsilon)
-                adv_next = clamp(input + delta, lower_limit, upper_limit)
+                delta = utils.clamp(delta, -epsilon, epsilon)
+                adv_next = utils.clamp(input + delta, lower_limit, upper_limit)
                 adv_input = Variable(adv_next, requires_grad=True).cuda()
 
                 nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)

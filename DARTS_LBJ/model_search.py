@@ -60,14 +60,17 @@ class Cell(nn.Module):
 
 class Network(nn.Module):
 
-  def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3):
+  def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3, tau=1, big_alpha=False):
     super(Network, self).__init__()
     self._C = C
+    self._C_list = []
     self._num_classes = num_classes
     self._layers = layers
     self._criterion = criterion
     self._steps = steps
     self._multiplier = multiplier
+    self.tau = tau
+    self.big_alpha = big_alpha
 
     C_curr = stem_multiplier*C
     self.stem = nn.Sequential(
@@ -87,6 +90,7 @@ class Network(nn.Module):
       cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
       reduction_prev = reduction
       self.cells += [cell]
+      self._C_list.append(C_curr)
       C_prev_prev, C_prev = C_prev, multiplier*C_curr
 
     self.global_pooling = nn.AdaptiveAvgPool2d(1)
@@ -104,9 +108,11 @@ class Network(nn.Module):
     s0 = s1 = self.stem(input)
     for i, cell in enumerate(self.cells):
       if cell.reduction:
-        weights = F.softmax(self.alphas_reduce, dim=-1)
+        # weights = F.softmax(self.alphas_reduce, dim=-1)
+        weights = F.softmax(self.alphas_reduce/self.tau, dim=-1)
       else:
-        weights = F.softmax(self.alphas_normal, dim=-1)
+        # weights = F.softmax(self.alphas_normal, dim=-1)
+        weights = F.softmax(self.alphas_normal/self.tau, dim=-1)
       s0, s1 = s1, cell(s0, s1, weights)
     out = self.global_pooling(s1)
     logits = self.classifier(out.view(out.size(0),-1))
@@ -122,6 +128,11 @@ class Network(nn.Module):
 
     self.alphas_normal = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
     self.alphas_reduce = Variable(1e-3*torch.randn(k, num_ops).cuda(), requires_grad=True)
+    if self.big_alpha:
+      print('using big_alpha init')
+      self.alphas_normal = Variable(torch.cat([1e-3*torch.randn(k, 4), torch.rand(k, 4)], dim=1).cuda(), requires_grad=True)
+      self.alphas_reduce = Variable(torch.cat([1e-3*torch.randn(k, 4), torch.rand(k, 4)], dim=1).cuda(), requires_grad=True)
+
     self._arch_parameters = [
       self.alphas_normal,
       self.alphas_reduce,
