@@ -91,7 +91,7 @@ def plot_loss_alpha(path):
         plt.bar(x, sols_avg[2], bottom=sols_avg[0]+sols_avg[1], label='nop', alpha=0.5)
     if n_obj >=4:
         plt.bar(x, sols_avg[3], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2], label='ood', alpha=0.5)
-    if n_obj >=4:
+    if n_obj >=5:
         plt.bar(x, sols_avg[4], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2]+sols_avg[3], label='flp', alpha=0.5)
     plt.xlabel('epoch')
     plt.ylabel('MGDA weight')
