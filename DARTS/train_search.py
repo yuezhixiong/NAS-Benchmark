@@ -153,9 +153,9 @@ def main():
     if args.ood_outer or args.ood_lambda:
         ood_transform, _ = utils._data_transforms_svhn(args)
         ood_data = dset.SVHN(root=args.data, split='train', download=True, transform=ood_transform)
-
+        ood_indices = list(range(len(ood_data)))
         ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
-                    sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(ood_indices),
                     pin_memory=True, num_workers=1)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -284,23 +284,22 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         elif args.adv == 'fast':
             input = Variable(input, requires_grad=True).cuda()
 
-            alpha = epsilon * 1.25
-            delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
-            delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
-            delta = Variable(delta, requires_grad=True).cuda()
-
-            logits = model(input + delta)
-            loss = criterion(logits, target)
-            loss.backward(retain_graph=True)
-            grad = torch.autograd.grad(loss, delta, retain_graph=False, create_graph=False)[0].detach().data           
-            delta = utils.clamp(delta.data + alpha * torch.sign(grad), -epsilon, epsilon)
-            delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
-            adv_input = Variable(input.data + delta, requires_grad=False).cuda()
-
             loss = 0
             if args.acc_lambda:
                 loss += args.acc_lambda * criterion(model(input), target)
             if args.adv_lambda:
+                alpha = epsilon * 1.25
+                delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
+                delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
+                delta = Variable(delta, requires_grad=True).cuda()
+
+                adv_logits = model(input + delta)
+                adv_loss = criterion(adv_logits, target)
+                adv_loss.backward(retain_graph=True)
+                grad = torch.autograd.grad(adv_loss, delta, retain_graph=False, create_graph=False)[0].detach().data           
+                delta = utils.clamp(delta.data + alpha * torch.sign(grad), -epsilon, epsilon)
+                delta = utils.clamp(delta, lower_limit - input.data, upper_limit - input.data)
+                adv_input = Variable(input.data + delta, requires_grad=False).cuda()
                 loss += args.adv_lambda * criterion(model(adv_input), target)
             if args.ood_lambda:
                 ood_logits = model(ood_input)
