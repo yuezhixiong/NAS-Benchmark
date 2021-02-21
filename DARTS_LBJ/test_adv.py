@@ -19,21 +19,21 @@ from model import NetworkCIFAR as Network
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
 parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
-parser.add_argument('--batch_size', type=int, default=1, help='batch size')
+parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
+parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='./saved_models/weights.pt', help='path of pretrained model')
-parser.add_argument('--auxiliary', action='store_true', default=False, help='use auxiliary tower')
-parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
+parser.add_argument('--auxiliary', action='store_true', default=True, help='use auxiliary tower')
+parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
-parser.add_argument('--attack', type=str, default='FGSM', help='which attack to use')
+parser.add_argument('--attack', type=str, default='PGD', help='which attack to use')
 
-parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--epsilon', default=1, type=int)
 parser.add_argument('--step_num', default=10, type=int, help='Step number of PGD attack')
 args = parser.parse_args()
 
@@ -105,7 +105,9 @@ def main():
       test_adv_acc = test_FGSM(model, test_queue, upper_limit, lower_limit, epsilon)
   elif args.attack == 'PGD':  
       test_adv_acc = test_PGD(model, test_queue, upper_limit, lower_limit, epsilon, step_size)
-  logging.info('test_adv_acc %f', test_adv_acc)
+  logging.info('test_adv_acc ' + test_adv_acc)
+
+  print(test_adv_acc)
 
 def clamp(X, lower_limit, upper_limit):
     return torch.max(torch.min(X, upper_limit), lower_limit)
@@ -138,9 +140,8 @@ def test_FGSM(net, testloader, upper_limit, lower_limit, epsilon):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-        print(acc, end='\r')
-    
-    return acc
+
+    return '{:.2f}'.format(acc)
 
 def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
 
@@ -175,9 +176,8 @@ def test_PGD(net, testloader, upper_limit, lower_limit, epsilon, step_size):
         correctNum += (adv_pred == true_label).sum().item()
         totalNum += len(labels)
         acc = correctNum / totalNum *100
-        print(acc, end='\r')
-    
-    return acc
+
+    return '{:.2f}'.format(acc)
 
 def infer(test_queue, model, criterion):
   objs = utils.AvgrageMeter()
@@ -186,8 +186,8 @@ def infer(test_queue, model, criterion):
   model.eval()
 
   for step, (input, target) in enumerate(test_queue):
-    input = Variable(input, volatile=True).cuda()
-    target = Variable(target, volatile=True).cuda()
+    input = Variable(input).cuda()
+    target = Variable(target).cuda()
 
     logits, _ = model(input)
     loss = criterion(logits, target)

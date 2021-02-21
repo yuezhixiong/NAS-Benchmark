@@ -20,18 +20,18 @@ class Architect(object):
         lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
     self.args = args
 
-  def fx_objective(self, x):
-    if self.args.fx == 'Sqr':
-      fx = x**2
-    elif self.args.fx == 'Cub':
-      fx = x**3
-    elif self.args.fx == 'Exp':
-      fx = np.exp(x)
-    elif self.args.fx == 'Tan':
-      fx = np.tanh(x)
-    else:
-      fx = x
-    return fx
+  # def fx_objective(self, x):
+  #   if self.args.fx == 'Sqr':
+  #     fx = x**2
+  #   elif self.args.fx == 'Cub':
+  #     fx = x**3
+  #   elif self.args.fx == 'Exp':
+  #     fx = np.exp(x)
+  #   elif self.args.fx == 'Tan':
+  #     fx = np.tanh(x)
+  #   else:
+  #     fx = x
+  #   return fx
 
 
   def _compute_unrolled_model(self, input, target, eta, network_optimizer):
@@ -190,7 +190,7 @@ class Architect(object):
       self.optimizer.zero_grad()
       ood_logits = unrolled_model.forward(self.ood_input)
       ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
-      ood_loss = ood_loss * 1e2
+      ood_loss = ood_loss * 10
       loss_data['ood'] = ood_loss.data[0]
       grads['ood'] = list(torch.autograd.grad(ood_loss, unrolled_model.arch_parameters(), retain_graph=True))
     # ---- ood loss end ----
@@ -212,6 +212,7 @@ class Architect(object):
     # ---- MGDA -----
     if self.args.MGDA and (len(grads)>1):
       sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+      sol = [x + 1e-7 for x in sol]
     else:
       sol = [1] * len(grads)
     # print(sol) # acc, adv, nop

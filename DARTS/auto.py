@@ -20,7 +20,7 @@ config_parser = configparser.ConfigParser()
 gpu = args.gpu
 
 def run(config):
-
+    print('saving at:', logpath)
     save = config.get('other', 'save')
     search = config.getboolean('other', 'search')
     train = config.getboolean('other', 'train')
@@ -83,6 +83,7 @@ def run(config):
             proc = subprocess.check_output(['python', 'model_size.py', '--arch', save])
             logging.info('train param size:' + proc.decode('utf-8').split()[-1])
 
+    print('saving at:', logpath)
     init_channels = '36'
     if train:
         logging.info("now running train")
@@ -95,6 +96,7 @@ def run(config):
         proc = subprocess.check_output(train_args)
         logging.info('clean_acc ' + proc.decode('utf-8').split()[-1])
 
+    print('saving at:', logpath)
     model_path = '{}/channel{}_{}/best_model.pt'.format(save, init_channels, dataset)
     if test_adv:
         logging.info("now running test_adv")
@@ -118,7 +120,7 @@ if args.config != 'none':
 else:
     copyfile('auto.py', os.path.join(logpath, 'auto.py'))
     adv = 'fast'
-    inner_values = [(0, 1, 1)] # adv_lambda, acc_lambda, ood_lambda
+    inner_values = [(0, 1, 0)] # adv_lambda, acc_lambda, ood_lambda
     constrain = 'abs' # min, abs
     constrain_mins = [3, 2, 1] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
@@ -128,7 +130,7 @@ else:
     ood_outer = 0
     flp_outer = 1
     mgda = 1 # 1
-    grad_norms = ['none'] #['l2', 'loss'] #'loss' # none, l2, loss+
+    grad_norms = ['l2'] #['l2', 'loss'] #'loss' # none, l2, loss+
     nop_later = 0 # 30
     adv_later = 0 # 30
     epoch = 50
@@ -144,15 +146,12 @@ else:
             for constrain_min in constrain_mins:
                 for fx in fxs:
                     for grad_norm in grad_norms:
-                        if big_alpha:
-                            config_name = 'bigAlphaInit'
-                        else:
-                            config_name = 'randomInit'
+                        # if big_alpha:
+                        #     config_name = 'bigAlphaInit'
+                        # else:
+                        #     config_name = 'randomInit'
 
-                        if dataset != 'cifar10':
-                            config_name += '_' + dataset
-
-                        config_name += '_inner'
+                        config_name = 'LL'
                         if adv != 'none':
                             if adv_lambda:
                                 config_name += '_adv' + str(adv_lambda)
@@ -161,7 +160,7 @@ else:
                         if ood_lambda:
                             config_name += '_ood' + str(ood_lambda)
 
-                        config_name += '_outer'
+                        config_name += '_UL'
                         
                         if adv_outer:
                             config_name += '_adv'
@@ -175,10 +174,10 @@ else:
                             config_name += '_mgda'
                         if constrain != 'none':
                             config_name += '_' + constrain + str(int(constrain_min*10))
-                        if temperature != 'none':
-                            config_name += '_temp' + temperature
-                        if fx != 'none':
-                            config_name += '_fx' + fx
+                        # if temperature != 'none':
+                        #     config_name += '_temp' + temperature
+                        # if fx != 'none':
+                        #     config_name += '_fx' + fx
 
                         if nop_later != 0:
                             config_name += '_nopLater' + str(nop_later)
@@ -188,6 +187,9 @@ else:
                             config_name += '_epoch' + str(epoch)
                         if grad_norm != 'none':
                             config_name += '_gn' + grad_norm
+
+                        if dataset != 'cifar10':
+                            config_name += '_' + dataset
                         
                         # save_path = os.path.join(logpath, config_name)
 

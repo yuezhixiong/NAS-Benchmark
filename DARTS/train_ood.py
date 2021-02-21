@@ -15,6 +15,7 @@ import torch.backends.cudnn as cudnn
 
 from torch.autograd import Variable
 from model import NetworkCIFAR as Network
+import torch.nn.functional as F
 
 
 parser = argparse.ArgumentParser("cifar")
@@ -35,10 +36,10 @@ parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight 
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout') # False
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
-parser.add_argument('--save', type=str, default='adv_nop_train', help='experiment name')
+parser.add_argument('--save', type=str, default='train_ood', help='experiment name')
 # parser.add_argument('--log_save', type=str, default='adv_nop', help='experiment name')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
-parser.add_argument('--arch', type=str, default='adv_nop', help='which architecture to use')
+parser.add_argument('--arch', type=str, default='DARTS_V2', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
@@ -116,6 +117,13 @@ def main():
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=2)
 
+  ood_transform, _ = utils._data_transforms_svhn(args)
+  ood_data = dset.SVHN(root=args.data, split='train', download=True, transform=ood_transform)
+
+  ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
+              sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
+              pin_memory=True, num_workers=1)
+
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
 
   best_acc = 0
@@ -124,7 +132,7 @@ def main():
     logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
     model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
 
-    train_acc, train_obj = train(train_queue, model, criterion, optimizer)
+    train_acc, train_obj = train(train_queue, model, criterion, optimizer, ood_queue)
     logging.info('train_acc %f', train_acc)
 
     valid_acc, valid_obj = infer(valid_queue, model, criterion)
@@ -140,7 +148,7 @@ def main():
   print('{:.2f}'.format(best_acc))
       
 
-def train(train_queue, model, criterion, optimizer):
+def train(train_queue, model, criterion, optimizer, ood_queue):
   objs = utils.AvgrageMeter()
   top1 = utils.AvgrageMeter()
   top5 = utils.AvgrageMeter()
@@ -150,10 +158,20 @@ def train(train_queue, model, criterion, optimizer):
     input = Variable(input).cuda()
     target = Variable(target).cuda()
 
-
     optimizer.zero_grad()
     logits, logits_aux = model(input)
     loss = criterion(logits, target)
+
+    # ood loss start
+    ood_input, ood_target = next(iter(ood_queue))
+    ood_input = Variable(ood_input, requires_grad=False).cuda()
+    ood_target = Variable(ood_target, requires_grad=False).cuda()
+
+    ood_logits = model(ood_input)
+    ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
+    loss += ood_loss
+    # ood loss end
+
     if args.auxiliary:
       loss_aux = criterion(logits_aux, target)
       loss += args.auxiliary_weight*loss_aux

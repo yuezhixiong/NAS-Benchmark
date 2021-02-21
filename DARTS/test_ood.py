@@ -13,8 +13,10 @@ import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 
 from torch.autograd import Variable
+import torch.nn.functional as F
 from model import NetworkCIFAR as Network
 
+from sklearn.metrics import precision_recall_curve, auc, roc_auc_score
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='location of the data corpus')
@@ -40,6 +42,9 @@ CIFAR_CLASSES = 10
 
 
 def main():
+  if (args.arch != 'DARTS_V2') and args.model_path == ('models/DARTS_V2_best.pt'):
+    args.model_path = args.arch + '/channel36_cifar10/best_model.pt'
+
   if not torch.cuda.is_available():
     logging.info('no gpu device available')
     sys.exit(1)
@@ -65,41 +70,75 @@ def main():
 
   _, test_transform = utils._data_transforms_cifar10(args)
   test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=test_transform)
-
   test_queue = torch.utils.data.DataLoader(
-      test_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=2)
+      test_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=1)
+
+  _, ood_transform = utils._data_transforms_svhn(args)
+  ood_data = dset.SVHN(root=args.data, split='test', download=True, transform=ood_transform)
+  ood_queue = torch.utils.data.DataLoader(
+      ood_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=1)
+
+  # print('data length', len(test_data), len(ood_data))
 
   model.drop_path_prob = args.drop_path_prob
-  test_acc, test_obj = infer(test_queue, model, criterion)
-  print('{:.2f}'.format(test_acc))
-  logging.info('test_acc %f', test_acc)
+  results = infer(test_queue, ood_queue, model, criterion)
+  results = ['{:.2%}'.format(x)[:-1] for x in results]
+  print('auroc, aupr_in, aupr_out, fpr, DE', results)
+  # logging.info('test_acc %f', test_acc)
 
 
-def infer(test_queue, model, criterion):
-  objs = utils.AvgrageMeter()
-  top1 = utils.AvgrageMeter()
-  top5 = utils.AvgrageMeter()
+def infer(test_queue, ood_queue, model, criterion):
+  # objs = utils.AvgrageMeter()
+  # top1 = utils.AvgrageMeter()
+  # top5 = utils.AvgrageMeter()
   model.eval()
-
+  
+  in_prob = []
   for step, (input, target) in enumerate(test_queue):
     input = Variable(input).cuda()
     target = Variable(target).cuda()
 
     logits, _ = model(input)
+    in_prob += list(F.softmax(logits, dim=-1).max(dim=-1)[0].data.cpu().numpy())
     loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
-    objs.update(loss.data.item(), n)
-    top1.update(prec1.data.item(), n)
-    top5.update(prec5.data.item(), n)
+    # objs.update(loss.data[0], n)
+    # top1.update(prec1.data[0], n)
+    # top5.update(prec5.data[0], n)
 
-    if step % args.report_freq == 0:
-      logging.info('test %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+    # if step % args.report_freq == 0:
+    #   logging.info('test %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+    test_length = step
+  
+  out_prob = []
+  for step, (ood_input, _) in enumerate(ood_queue):
+    ood_input = Variable(ood_input).cuda()
+    ood_logits, _ = model(ood_input)
+    out_prob += list(F.softmax(ood_logits, dim=-1).max(dim=-1)[0].data.cpu().numpy())
 
-  return top1.avg, objs.avg
+    if step >= test_length:
+      print('test_length', step)
+      break
+    
+  in_prob, out_prob = np.array(in_prob), np.array(out_prob)
+  label = np.concatenate([np.ones_like(in_prob), np.zeros_like(out_prob)])
+  prob = np.concatenate([in_prob, out_prob])
+  # auroc
+  auroc = roc_auc_score(label, prob)
+  # aupr in
+  precision, recall, _ = precision_recall_curve(label, prob)
+  aupr_in = auc(recall, precision)
+  # aupr out
+  precision, recall, _ = precision_recall_curve(1-label, prob)
+  aupr_out = auc(recall, precision)
+  # fpr when tpr95
+  fpr = utils.fpr_tpr95(in_prob, out_prob)
+  # detection error
+  DE = utils.DE(in_prob, out_prob)
+  return auroc, aupr_in, aupr_out, fpr, DE
 
 
 if __name__ == '__main__':
   main() 
-

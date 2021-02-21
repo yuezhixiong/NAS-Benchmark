@@ -12,13 +12,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--save', type=str, default='', help='path')
 args = parser.parse_args()
 
-def plot_loss_alpha(path, adv_outer=False):
+def plot_loss_alpha(path):
     N = int(25000/64)
     # N = 1000
     acc_loss = []
     nop_loss = []
     adv_loss = []
     ood_loss = []
+    flp_loss = []
     data = np.load(os.path.join(path, 'loss_data.npy'))
     for d in data:
         acc_loss.append(d['acc'])
@@ -33,13 +34,18 @@ def plot_loss_alpha(path, adv_outer=False):
         if 'ood' in d:
             ood_loss.append(d['ood'])
         else:
-            ood_loss.append(np.nan)        
+            ood_loss.append(np.nan)
+        if 'flp' in d:
+            flp_loss.append(d['flp'])
+        else:
+            flp_loss.append(np.nan)              
     
     # adv_outer = len(adv_loss)
     acc_loss = np.convolve(acc_loss, np.ones((N,))/N, mode='valid')[::N]
     nop_loss = np.convolve(nop_loss, np.ones((N,))/N, mode='valid')[::N]
     adv_loss = np.convolve(adv_loss, np.ones((N,))/N, mode='valid')[::N]
     ood_loss = np.convolve(ood_loss, np.ones((N,))/N, mode='valid')[::N]
+    flp_loss = np.convolve(flp_loss, np.ones((N,))/N, mode='valid')[::N]
     # acc_loss = acc_loss[:N]
     # nop_loss = nop_loss[:N]
 
@@ -48,9 +54,9 @@ def plot_loss_alpha(path, adv_outer=False):
     plt.subplot(221)
     plt.plot(acc_loss, label='acc')
     plt.plot(nop_loss, label='nop')
-    # if adv_outer:
     plt.plot(adv_loss, label='adv')
     plt.plot(ood_loss, label='ood')
+    plt.plot(flp_loss, label='flp')
     plt.legend()
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -60,12 +66,12 @@ def plot_loss_alpha(path, adv_outer=False):
     sols = []
     for l in data:
         # if len(l)>1:
-            sols.append(l)
+        sols.append(l)
     sols = np.array(sols)
     _sols = np.zeros([len(sols), sols.shape[1]])
     for i in range(sols.shape[0]):
         n_obj = len(sols[i])
-        if n_obj<3:
+        if n_obj < 3:
             _sols[i, :n_obj] = sols[i]
         else:
             _sols[i, :] = sols[i]
@@ -85,6 +91,8 @@ def plot_loss_alpha(path, adv_outer=False):
         plt.bar(x, sols_avg[2], bottom=sols_avg[0]+sols_avg[1], label='nop', alpha=0.5)
     if n_obj >=4:
         plt.bar(x, sols_avg[3], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2], label='ood', alpha=0.5)
+    if n_obj >=5:
+        plt.bar(x, sols_avg[4], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2]+sols_avg[3], label='flp', alpha=0.5)
     plt.xlabel('epoch')
     plt.ylabel('MGDA weight')
     # plt.title(path)
