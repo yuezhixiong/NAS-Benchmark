@@ -87,6 +87,7 @@ def main():
       train_data = dset.SVHN(root=args.data, split='train', download=True, transform=train_transform)
       valid_data = dset.SVHN(root=args.data, split='test', download=True, transform=valid_transform)
 
+
   genotype = eval("genotypes.%s" % args.arch)
   model = Network(args.init_channels, class_num, args.layers, args.auxiliary, genotype)
   
