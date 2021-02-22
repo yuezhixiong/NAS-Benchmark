@@ -227,6 +227,8 @@ class Architect(object):
         loss += float(sol[kk]) * param_loss
       elif t == 'ood':
         loss += float(sol[kk]) * ood_loss
+      elif t == 'flp':
+        loss += float(sol[kk]) * flp_loss
     self.optimizer.zero_grad()
     loss.backward()
     # ---- MGDA end -----
