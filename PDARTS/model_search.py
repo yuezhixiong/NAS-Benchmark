@@ -7,6 +7,7 @@ from genotypes import PRIMITIVES
 from genotypes import Genotype
 import numpy as np
 
+
 class MixedOp(nn.Module):
 
     def __init__(self, C, stride, switch, p):
@@ -79,7 +80,7 @@ class Network(nn.Module):
     def __init__(self, C, num_classes, layers, criterion, steps=4, multiplier=4, stem_multiplier=3, switches_normal=[], switches_reduce=[], p=0.0, largemode=False):
         super(Network, self).__init__()
         self._C = C
-        self.C_list = []
+        self._C_list = []
         self._num_classes = num_classes
         self._layers = layers
         self._criterion = criterion
@@ -87,6 +88,7 @@ class Network(nn.Module):
         self._multiplier = multiplier
         self.p = p
         self.switches_normal = switches_normal
+        self.switches_reduce = switches_reduce
         self.largemode=largemode
         switch_ons = []
         for i in range(len(switches_normal)):
@@ -132,8 +134,8 @@ class Network(nn.Module):
                 reduction = False
                 cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev, switches_normal, self.p)
             reduction_prev = reduction
+            self._C_list.append(C_curr)
             self.cells += [cell]
-            self.C_list.append(C_curr)
             C_prev_prev, C_prev = C_prev, multiplier*C_curr
 
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
@@ -186,38 +188,83 @@ class Network(nn.Module):
         return self._arch_parameters
 
 
-    # def param_number(self, max_constraint, max_size):
-    def param_number(self, constrain, constrain_size):
-#         print('$'*10, self.switches_normal[0])
-        def compute_u(C, is_reduction, switches_normal):
-            a = np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]).reshape(8, 1)
-#             u = torch.from_numpy(np.repeat(a, 14, axis=1))
+    def param_number(self, constrain, constrain_min, constrain_max=None):
+        # tau = self.tau
+        # constrain = self.args.constrain
+        # constrain_max = torch.Tensor([self.args.constrain_max]).cuda()
+        constrain_min = torch.Tensor([constrain_min]).cuda()
+        def compute_u(C, is_reduction):
+            a = np.array([0, 0, 0, 0, 2*(C**2+11*C), 2*(C**2+27*C), C**2+11*C, C**2+27*C]).reshape(8, 1)
             u = np.repeat(a, 14, axis=1)
+            switches_array = self.switches_normal
             if is_reduction:
-                u[3, :] = u[3, :] + np.array([C**2, C**2, C**2, C**2, 0, C**2, C**2, 0, 0, C**2, C**2, 0, 0, 0])
-            if (np.array(switches_normal[0])==0).sum() != 0:
-                index = np.argwhere(np.array(switches_normal[0])==0)[:,0]
-                u = np.delete(u, index, axis=0)
-            u = Variable(torch.from_numpy(u)).float().cuda()
-            return u
+                u[3, :] = u[3, :] + np.array([C**2+2*C, C**2+2*C, C**2+2*C, C**2+2*C, 0, C**2+2*C, C**2+2*C, 0, 0, C**2+2*C, C**2+2*C, 0, 0, 0])
+                switches_array = self.switches_reduce
+            switches_index = torch.nonzero(torch.from_numpy(np.array(switches_array)).cuda().float())
+            u = torch.from_numpy(u).cuda().float().t()
+            switches_u = u[switches_index[:,0], switches_index[:,1]].reshape(u.size()[0], -1)
+            return switches_u
+
         loss = 0
-        C = self._C
-        # u = torch.from_numpy(np.array([0, 0, 0, 0, 2*(C**2+9*C), 2*(C**2+25*C), C**2+9*C, C**2+25*C]))
-#         C_list = [C, C, 2*C, 2*C, 2*C, 4*C, 4*C, 4*C]
-        C_list = self.C_list
-#         print('-'*10, C_list)
         for i in range(self._layers):
             if self.cells[i].reduction:
-                alpha = F.softmax(self.arch_parameters()[1], dim=-1)
-                u = compute_u(C_list[i], is_reduction=True, switches_normal=self.switches_normal)
+                if self.alphas_reduce.size(1) == 1:
+                    alpha = F.softmax(self.alphas_reduce, dim=0)
+                else:
+                    alpha = F.softmax(self.alphas_reduce, dim=-1)
+                u = compute_u(self._C_list[i], is_reduction=True)
             else:
-                alpha = F.softmax(self.arch_parameters()[0], dim=-1)
-                u = compute_u(C_list[i], is_reduction=False, switches_normal=self.switches_normal)
-#             print('-'*5, alpha.size(), u.size())
-            loss += (2 * torch.mm(alpha, u).sum(dim=1) / Variable(torch.from_numpy(np.repeat(range(2, 6), [2, 3, 4, 5]))).float().cuda()).sum()
+                if self.alphas_normal.size(1) == 1:
+                    alpha = F.softmax(self.alphas_normal, dim=0)
+                else:
+                     alpha = F.softmax(self.alphas_normal, dim=-1)
+                u = compute_u(self._C_list[i], is_reduction=False)
+            loss += torch.mul(alpha, u).sum()
+        
+        loss = loss / 1e5
         if constrain=='max':
-            return torch.max(Variable(torch.ones(1)).cuda(), loss-constrain_size)[0]
+            return torch.max(torch.ones(1).cuda(), loss-constrain_max)[0]
         elif constrain=='min':
-            return torch.max(Variable(torch.ones(1)).cuda(), constrain_size-loss)[0]
+            # return torch.max(Variable(torch.ones(1)).cuda(), constrain_min-loss)[0]
+            return torch.max(constrain_min, loss)[0]
+        elif constrain=='both':
+            # return torch.min(constrain_max, torch.max(constrain_min, loss)[0])[0]
+            return loss + torch.max(torch.max(torch.ones(1).cuda(), loss-constrain_max)[0], constrain_min-loss)[0]
+        elif constrain=='abs':
+            return torch.abs(constrain_min - loss)[0]
         else:
             return loss
+
+    def cal_flops(self):
+        def compute_u(c, is_reduction):
+            a = np.array([0, 0, 1024, 0, 20808*c + 2048*c*c, 64800*c + 2048*c*c, 10404*c + 1024*c*c, 36100*c + 1024*c*c]).reshape(8, 1)
+            u = np.repeat(a, 14, axis=1)
+            switches_array = self.switches_normal
+            if is_reduction:
+                u[3, :] = u[3, :] + np.array([256*c*c, 256*c*c, 256*c*c, 256*c*c, 0, 256*c*c, 256*c*c, 0, 0, 256*c*c, 256*c*c, 0, 0, 0])
+                switches_array = self.switches_reduce
+            switches_index = torch.nonzero(torch.from_numpy(np.array(switches_array)).cuda().float())
+            u = torch.from_numpy(u).cuda().float().t()
+            switches_u = u[switches_index[:,0], switches_index[:,1]].reshape(u.size()[0], -1)
+            return switches_u
+
+        loss = 0
+        for i in range(self._layers):
+            if self.cells[i].reduction:
+                if self.alphas_reduce.size(1) == 1:
+                    alpha = F.softmax(self.alphas_reduce, dim=0)
+                else:
+                    alpha = F.softmax(self.alphas_reduce, dim=-1)
+                u = compute_u(self._C_list[i], is_reduction=True)
+            else:
+                if self.alphas_normal.size(1) == 1:
+                    alpha = F.softmax(self.alphas_normal, dim=0)
+                else:
+                     alpha = F.softmax(self.alphas_normal, dim=-1)
+                u = compute_u(self._C_list[i], is_reduction=False)
+            loss += torch.mul(alpha, u).sum()
+
+        loss = loss / 1e8
+          
+        return loss
+
