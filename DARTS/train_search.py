@@ -286,7 +286,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
 
             loss = 0
             if args.acc_lambda:
-                loss += args.acc_lambda * criterion(model(input), target)
+                logits = model(input)
+                loss += args.acc_lambda * criterion(logits, target)
             if args.adv_lambda:
                 alpha = epsilon * 1.25
                 delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
@@ -364,7 +365,7 @@ def infer(valid_queue, model, criterion):
 
     for step, (input, target) in enumerate(valid_queue):
         input = Variable(input, volatile=True).cuda()
-        target = Variable(target, volatile=True).cuda(async=True)
+        target = Variable(target, volatile=True).cuda()
 
         logits = model(input)
         loss = criterion(logits, target)
