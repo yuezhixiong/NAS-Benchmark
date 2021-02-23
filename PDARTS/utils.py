@@ -89,7 +89,7 @@ def data_transforms(dataset,cutout, cutout_length):
       train_transform.transforms.append(Cutout(cutout_length))
     valid_transform = transforms.Compose(transf_val + normalize)
     return train_transform, valid_transform
-  if dataset == "CIFAR10":
+  if dataset == "cifar10":
     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
   
@@ -107,7 +107,7 @@ def data_transforms(dataset,cutout, cutout_length):
       transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
       ])
     return train_transform, valid_transform
-  if dataset == "CIFAR100":
+  if dataset == "cifar100":
     CIFAR_MEAN = [0.5071, 0.4867, 0.4408]
     CIFAR_STD = [0.2675, 0.2565, 0.2761]
 

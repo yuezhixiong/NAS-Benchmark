@@ -60,7 +60,8 @@ parser.add_argument('--grad_norm', type=str, default='none', choices=['none', 'l
 
 args = parser.parse_args()
 
-utils.create_exp_dir(args.save, scripts_to_save=glob.glob('train_search.py'))
+# utils.create_exp_dir(args.save, scripts_to_save=glob.glob('train_search.py'))
+os.makedirs(args.save, exist_ok=True)
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -107,9 +108,9 @@ def main():
     #  prepare dataset
     train_transform, valid_transform = utils.data_transforms(args.dataset,args.cutout,args.cutout_length)
     if args.dataset == "cifar100":
-        train_data = dset.cifar100(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
+        train_data = dset.CIFAR100(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
     elif args.dataset == "cifar10":
-        train_data = dset.cifar10(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
+        train_data = dset.CIFAR10(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
     elif args.dataset == 'mit67':
         dset_cls = dset.ImageFolder
         data_path = '%s/MIT67/train' % args.tmp_data_dir  # 'data/MIT67/train'
