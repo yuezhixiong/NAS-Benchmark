@@ -20,7 +20,7 @@ import random
 from min_norm_solvers import MinNormSolver, gradient_normalizers
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
+parser.add_argument('--dataset', default="cifar10", help='cifar10/mit67/sport8/cifar100/flowers102')
 parser.add_argument('--workers', type=int, default=2, help='number of workers to load dataset')
 parser.add_argument('--batch_size', type=int, default=96, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
@@ -35,13 +35,13 @@ parser.add_argument('--layers', type=int, default=5, help='total number of layer
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='/tmp/checkpoints/', help='experiment path')
+parser.add_argument('--save', type=str, default='pdarts', help='experiment path')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--tmp_data_dir', type=str, default='/tmp/cache/', help='temp data dir')
+parser.add_argument('--tmp_data_dir', type=str, default='../data', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 parser.add_argument('--dropout_rate', action='append', default=[], help='dropout rate of skip connect')
 parser.add_argument('--add_width', action='append', default=['0'], help='add channels')
@@ -60,7 +60,7 @@ parser.add_argument('--grad_norm', type=str, default='none', choices=['none', 'l
 
 args = parser.parse_args()
 
-#utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+utils.create_exp_dir(args.save, scripts_to_save=glob.glob('train_search.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -69,10 +69,10 @@ fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
-if args.dataset=="CIFAR100":
+if args.dataset=="cifar100":
     CLASSES = 100
     data_folder = 'cifar-100-python'
-elif args.dataset=="CIFAR10":
+elif args.dataset=="cifar10":
     CLASSES = 10
     data_folder = 'cifar-10-batches-py'
 elif args.dataset == 'mit67':
@@ -106,10 +106,10 @@ def main():
     logging.info("args = %s", args)
     #  prepare dataset
     train_transform, valid_transform = utils.data_transforms(args.dataset,args.cutout,args.cutout_length)
-    if args.dataset == "CIFAR100":
-        train_data = dset.CIFAR100(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
-    elif args.dataset == "CIFAR10":
-        train_data = dset.CIFAR10(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
+    if args.dataset == "cifar100":
+        train_data = dset.cifar100(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
+    elif args.dataset == "cifar10":
+        train_data = dset.cifar10(root=args.tmp_data_dir, train=True, download=True, transform=train_transform)
     elif args.dataset == 'mit67':
         dset_cls = dset.ImageFolder
         data_path = '%s/MIT67/train' % args.tmp_data_dir  # 'data/MIT67/train'
@@ -148,10 +148,10 @@ def main():
         ood_queue = None
 
     if args.adv_outer:
-        if args.dataset == 'CIFAR10':
+        if args.dataset == 'cifar10':
             mean = (0.4914, 0.4822, 0.4465)
             std = (0.2471, 0.2435, 0.2616)
-        elif args.dataset == 'CIFAR100':
+        elif args.dataset == 'cifar100':
             mean = (0.5071, 0.4867, 0.4408)
             std = (0.2675, 0.2565, 0.2761)
         mean = torch.FloatTensor(mean).view(3,1,1)
