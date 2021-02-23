@@ -5,6 +5,9 @@ import shutil
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 
+def clamp(X, lower_limit, upper_limit):
+  return torch.max(torch.min(X, upper_limit), lower_limit)
+
 LARGE_DATASETS = ["mit67", "sport8", "flowers102"]
 
 class AvgrageMeter(object):
@@ -138,62 +141,6 @@ def save_checkpoint(state, is_best, save):
 def save(model, model_path):
   torch.save(model.state_dict(), model_path)
 
-def _data_transforms_cifar10(args):
-  CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
-  CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
-
-  train_transform = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-  ])
-  if args.cutout:
-    train_transform.transforms.append(Cutout(args.cutout_length))
-
-  valid_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-    ])
-  return train_transform, valid_transform
-  
-def _data_transforms_cifar100(args):
-  CIFAR_MEAN = [0.5071, 0.4867, 0.4408]
-  CIFAR_STD = [0.2675, 0.2565, 0.2761]
-
-  train_transform = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-  ])
-  if args.cutout:
-    train_transform.transforms.append(Cutout(args.cutout_length))
-
-  valid_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-    ])
-  return train_transform, valid_transform
-
-def _data_transforms_svhn(args):
-  SVHN_MEAN = [0.4377, 0.4438, 0.4728]
-  SVHN_STD = [0.1980, 0.2010, 0.1970]
-
-  train_transform = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize(SVHN_MEAN, SVHN_STD),
-  ])
-  if args.cutout:
-    train_transform.transforms.append(Cutout(args.cutout_length))
-
-  valid_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(SVHN_MEAN, SVHN_STD),
-    ])
-  return train_transform, valid_transform
 
 def load(model, model_path):
   model.load_state_dict(torch.load(model_path))
