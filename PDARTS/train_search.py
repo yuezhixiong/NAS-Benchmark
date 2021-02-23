@@ -12,55 +12,55 @@ import torch.utils
 import torch.nn.functional as F
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
-from torch.autograd import Variable
 import copy
 from model_search import Network
 from genotypes import PRIMITIVES
 from genotypes import Genotype
 import random
-sys.path.append('../')
 from min_norm_solvers import MinNormSolver, gradient_normalizers
-from torch.autograd import Variable
-
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--dataset', default="CIFAR10", help='cifar10/mit67/sport8/cifar100/flowers102')
-parser.add_argument('--workers', type=int, default=2, help='number of workers to load ifdataset')
+parser.add_argument('--workers', type=int, default=2, help='number of workers to load dataset')
 parser.add_argument('--batch_size', type=int, default=96, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.0, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--gpu', type=int, default=3, help='GPU device id')
+parser.add_argument('--gpu', type=int, default=0, help='GPU device id')
 parser.add_argument('--epochs', type=int, default=25, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=5, help='total number of layers')
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='adv_nop', help='experiment path')
+parser.add_argument('--save', type=str, default='/tmp/checkpoints/', help='experiment path')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
 parser.add_argument('--arch_learning_rate', type=float, default=6e-4, help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weight decay for arch encoding')
-parser.add_argument('--tmp_data_dir', type=str, default='../data', help='temp data dir')
+parser.add_argument('--tmp_data_dir', type=str, default='/tmp/cache/', help='temp data dir')
 parser.add_argument('--note', type=str, default='try', help='note for this run')
 parser.add_argument('--dropout_rate', action='append', default=[], help='dropout rate of skip connect')
 parser.add_argument('--add_width', action='append', default=['0'], help='add channels')
 parser.add_argument('--add_layers', action='append', default=['0'], help='add layers')
 
-parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'none'], help='use constraint in model size')
-parser.add_argument('--constrain_size', type=int, default=1e6, help='constrain the model size')
-parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
-parser.add_argument('--grad_norm', default=False, action='store_true', help='use gradient normalization in MGDA')
-parser.add_argument('--original', default=False, action='store_true', help='original version')
-parser.add_argument('--fgsm', default=False, action='store_true', help='use fgsm adversarial training')
 parser.add_argument('--epsilon', default=2, type=int)
+parser.add_argument('--nop_outer', default=False, action='store_true', help='optimize number of parameter')
+parser.add_argument('--adv_outer', default=False, action='store_true', help='use adv in outer loop')
+parser.add_argument('--flp_outer', default=False, action='store_true', help='use flp in outer loop')
+parser.add_argument('--ood_outer', default=False, action='store_true', help='use ood in outer loop')
+parser.add_argument('--ood_inner', default=False, action='store_true', help='use ood in inner loop')
+parser.add_argument('--constrain', type=str, default='none', choices=['max', 'min', 'both', 'abs', 'none'], help='use constraint in model size')
+parser.add_argument('--constrain_min', type=float, default=0, help='constrain the model size')
+parser.add_argument('--MGDA', default=False, action='store_true', help='use MGDA')
+parser.add_argument('--grad_norm', type=str, default='none', choices=['none', 'lossplus', 'loss', 'l2'], help='use gradient normalization in MGDA')
+
 args = parser.parse_args()
 
-# utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+#utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -137,6 +137,29 @@ def main():
         train_data, batch_size=args.batch_size,
         sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
         pin_memory=True, num_workers=args.workers)
+
+    if args.ood_outer or args.ood_inner:
+        ood_data = dset.SVHN(root=args.tmp_data_dir, split='train', download=True, transform=train_transform)
+
+        ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
+                    pin_memory=True, num_workers=args.workers)
+    else:
+        ood_queue = None
+
+    if args.adv_outer:
+        if args.dataset == 'CIFAR10':
+            mean = (0.4914, 0.4822, 0.4465)
+            std = (0.2471, 0.2435, 0.2616)
+        elif args.dataset == 'CIFAR100':
+            mean = (0.5071, 0.4867, 0.4408)
+            std = (0.2675, 0.2565, 0.2761)
+        mean = torch.FloatTensor(mean).view(3,1,1)
+        std = torch.FloatTensor(std).view(3,1,1)
+        global upper_limit, lower_limit, epsilon
+        upper_limit = ((1 - mean)/ std).cuda()
+        lower_limit = ((0 - mean)/ std).cuda()
+        epsilon = ((args.epsilon / 255.) / std).cuda()
     
     # build Network
     criterion = nn.CrossEntropyLoss()
@@ -185,7 +208,7 @@ def main():
         eps_no_arch = eps_no_archs[sp]
         scale_factor = 0.2
         for epoch in range(epochs):
-            # scheduler.step()
+            scheduler.step()
             lr = scheduler.get_lr()[0]
             logging.info('Epoch: %d lr: %e', epoch, lr)
             epoch_start = time.time()
@@ -193,12 +216,12 @@ def main():
             if epoch < eps_no_arch:
                 model.p = float(drop_rate[sp]) * (epochs - epoch - 1) / epochs
                 model.update_p()
-                # train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
-                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, args, train_arch=False)
+                # train_arch=True for debug
+                train_acc, train_obj = train(train_queue, valid_queue, ood_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=False)
             else:
                 model.p = float(drop_rate[sp]) * np.exp(-(epoch - eps_no_arch) * scale_factor) 
                 model.update_p()                
-                train_acc, train_obj = train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, args, train_arch=True)
+                train_acc, train_obj = train(train_queue, valid_queue, ood_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True)
             logging.info('Train_acc %f', train_acc)
             epoch_duration = time.time() - epoch_start
             logging.info('Epoch time: %ds', epoch_duration)
@@ -206,7 +229,6 @@ def main():
             if epochs - epoch < 5:
                 valid_acc, valid_obj = infer(valid_queue, model, criterion)
                 logging.info('Valid_acc %f', valid_acc)
-            scheduler.step()
         utils.save(model, os.path.join(args.save, 'weights.pt'))
         print('------Dropping %d paths------' % num_to_drop[sp])
         # Save switches info for s-c refinement. 
@@ -304,11 +326,7 @@ def main():
         f.write(str(genotype))
               
 
-def clamp(X, lower_limit, upper_limit):
-    return torch.max(torch.min(X, upper_limit), lower_limit)
-
-def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, args, train_arch=True):
-# def train(train_queue, valid_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True):
+def train(train_queue, valid_queue, ood_queue, model, network_params, criterion, optimizer, optimizer_a, lr, train_arch=True):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
@@ -316,12 +334,9 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
     for step, (input, target) in enumerate(train_queue):
         model.train()
         n = input.size(0)
-        input = input.cuda()
-        target = target.cuda()
-#         target = target.cuda(async=True)
+        input = input.cuda(non_blocking=True)
+        target = target.cuda(non_blocking=True)
         if train_arch:
-        # if True:
-        #     print('warning if True rather than if train_arch')
             # In the original implementation of DARTS, it is input_search, target_search = next(iter(valid_queue), which slows down
             # the training when using PyTorch 0.4 and above. 
             try:
@@ -329,94 +344,110 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
             except:
                 valid_queue_iter = iter(valid_queue)
                 input_search, target_search = next(valid_queue_iter)
-            input_search = Variable(input_search).cuda()
-            target_search = target_search.cuda()
+            input_search = input_search.cuda(non_blocking=True)
+            if args.adv_outer:
+                input_search.requires_grad = True
+            target_search = target_search.cuda(non_blocking=True)
+
+            grads = {}
             loss_data = {}
+            # ---- acc loss ----
             optimizer_a.zero_grad()
             logits = model(input_search)
             loss_a = criterion(logits, target_search)
-            # if entropy:
-            #     entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
-            #                 (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
-            #     loss_a = loss_a + lambda_entropy * entropy_loss
-            loss_data['darts'] = loss_a.item()
-            loss_a.backward()
+            loss_data['acc'] = loss_a.item()
+            grads['acc'] = list(torch.autograd.grad(loss_a, model.arch_parameters(), retain_graph=True))
+            # ---- end ----
 
-            if not args.original:
-                # ---- MGDA ----
-                grads = {}
-                grads['darts'] = []
-                # nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
-                for param in model.arch_parameters():
-                    if param.grad is not None:
-                        grads['darts'].append(Variable(param.grad.data.clone(), requires_grad=False))
+            # ---- nop loss ----
+            if args.nop_outer:
+                param_loss = model.param_number(args.constrain, args.constrain_min)
+                loss_data['nop'] = param_loss.item()
+                grads['nop'] = list(torch.autograd.grad(param_loss, model.arch_parameters(), retain_graph=True))
+            # ---- end ----
 
-                optimizer_a.zero_grad()
-                param_loss = model.param_number(args.constrain, args.constrain_size)
-                loss_data['param'] = param_loss.item()
-                param_loss.backward()
-                grads['param'] = []
-                for param in model.arch_parameters():
-                    if param.grad is not None:
-                        grads['param'].append(Variable(param.grad.data.clone(), requires_grad=False))
+            # ---- flops loss ----
+            if args.flp_outer:
+                flp_loss = model.cal_flops()
+                loss_data['flp'] = flp_loss.item()
+                grads['flp'] = list(torch.autograd.grad(flp_loss, model.arch_parameters(), retain_graph=True))
+            # ---- end ----
 
-                # gn = gradient_normalizers(grads, loss_data, normalization_type='loss+')
-                if args.grad_norm:
-                    gn = gradient_normalizers(grads, loss_data, normalization_type='l2') # loss+, loss, l2
-                else:
-                    gn = gradient_normalizers(grads, loss_data, normalization_type='none')
-                for t in ['darts', 'param']:
-                    for gr_i in range(len(grads[t])):
-                        grads[t][gr_i] = grads[t][gr_i] / gn[t]
+            # ---- adv loss ----
+            if args.adv_outer:
+                step_size = epsilon * 1.25
+                delta = ((torch.rand(input_search.size())-0.5)*2).cuda() * epsilon
+                adv_grad = torch.autograd.grad(loss_a, input_search, retain_graph=True, create_graph=False)[0]
+                adv_grad = adv_grad.detach().data
+                delta = utils.clamp(delta + step_size * torch.sign(adv_grad), -epsilon, epsilon)
+                delta = utils.clamp(delta, lower_limit - input_search.data, upper_limit - input_search.data)
+                adv_input = (input_search.data + delta).cuda()
+                adv_logits = model(adv_input)
+                loss_adv = criterion(adv_logits, target_search)
+                loss_data['adv'] = loss_adv.item()
+                grads['adv'] = list(torch.autograd.grad(loss_adv, model.arch_parameters(), retain_graph=True))
+            # ---- end ----
 
-                optimizer_a.zero_grad()
-                if args.MGDA:
-                    sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
-                else:
-                    sol = [1, 1]
-    #             print('-'*8, sol)
-                logits = model(input_search)
-                loss_a = criterion(logits, target_search)
-                # if entropy:
-                #     entropy_loss = -1.0 * (F.softmax(model.arch_parameters()[0], dim=1)*F.log_softmax(model.arch_parameters()[0], dim=1)).sum() - \
-                #                 (F.softmax(model.arch_parameters()[1], dim=1)*F.log_softmax(model.arch_parameters()[1], dim=1)).sum()
-                #     loss_a = loss_a + lambda_entropy * entropy_loss
-                param_loss = model.param_number(args.constrain, args.constrain_size)
-                loss = sol[0] * loss_a + sol[1] * param_loss
-                loss.backward()
+            # ---- ood loss ----
+            if args.ood_outer:
+                try:
+                    ood_input, _ = next(ood_queue_iter)
+                except:
+                    ood_queue_iter = iter(ood_queue)
+                    ood_input, _ = next(ood_queue_iter)
+                ood_input = ood_input.cuda(non_blocking=True)
+                ood_logits = model(ood_input)
+                ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
+                loss_data['ood'] = ood_loss.item()
+                grads['ood'] = list(torch.autograd.grad(ood_loss, model.arch_parameters(), retain_graph=True))
+            # ---- end ----
 
+            gn = gradient_normalizers(grads, loss_data, normalization_type=args.grad_norm) # loss+, loss, l2
+
+            for t in grads:
+                for gr_i in range(len(grads[t])):
+                    grads[t][gr_i] = grads[t][gr_i] / (gn[t]+1e-7)
+            
+            # ---- MGDA -----
+            if args.MGDA and (len(grads)>1):
+                sol, _ = MinNormSolver.find_min_norm_element([grads[t] for t in grads])
+            else:
+                sol = [1] * len(grads)
+            print(sol) # acc, adv, nop
+
+            loss_mgda = 0
+            for kk, t in enumerate(grads):
+                if t == 'acc':
+                    loss_mgda += float(sol[kk]) * loss_a
+                elif t == 'adv':
+                    loss_mgda += float(sol[kk]) * loss_adv   
+                elif t == 'nop':
+                    loss_mgda += float(sol[kk]) * param_loss
+                elif t == 'flp':
+                    loss_mgda += float(sol[kk]) * flp_loss
+                elif t == 'ood':
+                    loss_mgda += float(sol[kk]) * ood_loss
+            # ---- end ----
+
+            optimizer_a.zero_grad()
+            loss_mgda.backward()
+            nn.utils.clip_grad_norm_(model.arch_parameters(), args.grad_clip)
             optimizer_a.step()
 
-            # ---- MGDA ----
-
         optimizer.zero_grad()
+        logits = model(input)
+        loss = criterion(logits, target)
 
-        if args.fgsm:
-            input.requires_grad = True
-
-            mean = (0.4914, 0.4822, 0.4465)
-            std = (0.2471, 0.2435, 0.2616)
-            mean = torch.FloatTensor(mean).view(3,1,1)
-            std = torch.FloatTensor(std).view(3,1,1)
-            upper_limit = ((1 - mean)/ std).cuda()
-            lower_limit = ((0 - mean)/ std).cuda()
-
-            epsilon = ((args.epsilon / 255.) / std).cuda()
-            alpha = epsilon * 1.25
-            delta = ((torch.rand(input.size())-0.5)*2).cuda() * epsilon
-
-            loss = criterion(model(input), target)
-            loss.backward(retain_graph=True)
-            grad = torch.autograd.grad(loss, input, retain_graph=False, create_graph=False)[0].detach().data
-            
-            delta = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
-            delta = clamp(delta, lower_limit - input.data, upper_limit - input.data)
-            adv_input = Variable(input.data + delta, requires_grad=False).cuda()
-            logits = model(adv_input)  
-            loss = criterion(logits, target)
-        else:
-            logits = model(input)
-            loss = criterion(logits, target)
+        if args.ood_inner:
+            try:
+                ood_input, _ = next(ood_queue_iter)
+            except:
+                ood_queue_iter = iter(ood_queue)
+                ood_input, _ = next(ood_queue_iter)
+            ood_input = ood_input.cuda(non_blocking=True)
+            ood_logits = model(ood_input)
+            ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
+            loss += ood_loss
 
         loss.backward()
         nn.utils.clip_grad_norm_(network_params, args.grad_clip)
@@ -432,6 +463,7 @@ def train(train_queue, valid_queue, model, network_params, criterion, optimizer,
 
     return top1.avg, objs.avg
 
+
 def infer(valid_queue, model, criterion):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
@@ -439,9 +471,8 @@ def infer(valid_queue, model, criterion):
     model.eval()
 
     for step, (input, target) in enumerate(valid_queue):
-        input = input.cuda()
-#         target = target.cuda(async=True)
-        target = target.cuda()
+        input = input.cuda(non_blocking=True)
+        target = target.cuda(non_blocking=True)
         with torch.no_grad():
             logits = model(input)
             loss = criterion(logits, target)
