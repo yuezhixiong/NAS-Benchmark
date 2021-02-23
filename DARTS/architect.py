@@ -123,10 +123,10 @@ class Architect(object):
 
   def cal_flops(self, unrolled_model):
     def compute_u(c, is_reduction):
-      a = np.array([0, 0, 1024, 0, 20808*c + 2048*c*c, 64800*c + 2048*c*c, 10404*c + 1024*c*c, 36100*c + 1024*c*c]).reshape(8, 1)
+      a = np.array([0, 0, 1024*c*c, 0, 26952*c + 2048*c*c, 69920*c + 2048*c*c, 13476*c + 1024*c*c, 39172*c + 1024*c*c]).reshape(8, 1)
       u = np.repeat(a, 14, axis=1)
       if is_reduction:
-        u[3, :] = u[3, :] + np.array([256*c*c, 256*c*c, 256*c*c, 256*c*c, 0, 256*c*c, 256*c*c, 0, 0, 256*c*c, 256*c*c, 0, 0, 0])
+        u[3, :] = u[3, :] + np.array([1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0]) * (256*c*c+2048*c)
       return Variable(torch.from_numpy(u)).float().cuda()
 
     loss = 0
