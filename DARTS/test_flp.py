@@ -80,9 +80,12 @@ def main():
   macs, params = profile(model, inputs=(test_input, ))
 
   mb = 1e6
+  gb = 1e9
   macs_mb = macs/mb
   params_mb = params/mb
+  macs_gb = macs/gb
   print('MACs: {:.2f}'.format(macs_mb), 'Params: {:.3f}'.format(params_mb))
+  print('{:.4f}'.format(macs_gb))
   # logging.info('test_acc %f', test_acc)
 
 
