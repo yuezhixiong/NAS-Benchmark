@@ -7,6 +7,13 @@ from torch.autograd import Variable
 
 LARGE_DATASETS = ["Sport8", "MIT67", "flowers102"]
 
+def clamp(X, lower_limit, upper_limit):
+    return torch.max(torch.min(X, upper_limit), lower_limit)
+
+def _concat(xs):
+  return torch.cat([x.view(-1) for x in xs])
+
+    
 class AvgrageMeter(object):
 
   def __init__(self):
@@ -210,11 +217,11 @@ def drop_path(x, drop_prob):
 
 def create_exp_dir(path, scripts_to_save=None):
   if not os.path.exists(path):
-    os.mkdir(path)
+    os.makedirs(path, exist_ok=True)
   print('Experiment dir : {}'.format(path))
 
   if scripts_to_save is not None:
-    os.mkdir(os.path.join(path, 'scripts'))
+    os.makedirs(os.path.join(path, 'scripts'), exist_ok=True)
     for script in scripts_to_save:
       dst_file = os.path.join(path, 'scripts', os.path.basename(script))
       shutil.copyfile(script, dst_file)
