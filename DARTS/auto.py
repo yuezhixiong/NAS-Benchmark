@@ -129,7 +129,7 @@ else:
     adv_outer = 1
     ood_outer = 0
     flp_outer = 1
-    mgda = 1 # 1
+    mgda = 0 # 1
     grad_norms = ['l2'] #['l2', 'loss'] #'loss' # none, l2, loss+
     nop_later = 0 # 30
     adv_later = 0 # 30
@@ -139,7 +139,7 @@ else:
     search = 1
     train = 1
     test_adv = 1
-    datasets = ['cifar10'] #, 'cifar100']
+    datasets = ['cifar100'] #, 'cifar100']
 
     for dataset in datasets:
         for adv_lambda, acc_lambda, ood_lambda in inner_values:

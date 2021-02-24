@@ -242,15 +242,28 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         target = Variable(target, requires_grad=False).cuda()
 
         # get a random minibatch from the search queue with replacement
-        input_search, target_search = next(iter(valid_queue))
-        input_search = Variable(input_search, requires_grad=False).cuda()
-        target_search = Variable(target_search, requires_grad=False).cuda()
+        # start = time.time()
+        # input_search, target_search = next(iter(valid_queue))
+        try:
+            input_search, target_search = next(valid_queue_iter)
+        except:
+            valid_queue_iter = iter(valid_queue)
+            input_search, target_search = next(valid_queue_iter)
+        # end = time.time()
+        # print('iter time:', end - start)
+        input_search = Variable(input_search, requires_grad=False).cuda(async=True)
+        target_search = Variable(target_search, requires_grad=False).cuda(async=True)
         # get ood data batch
         ood_input = None
         if args.ood_outer or args.ood_lambda:
-            ood_input, ood_target = next(iter(ood_queue))
-            ood_input = Variable(ood_input, requires_grad=False).cuda()
-            ood_target = Variable(ood_target, requires_grad=False).cuda()
+            # ood_input, ood_target = next(iter(ood_queue))
+            try:
+                ood_input, _ = next(ood_queue_iter)
+            except:
+                ood_queue_iter = iter(ood_queue)
+                ood_input, _ = next(ood_queue_iter)
+            ood_input = Variable(ood_input, requires_grad=False).cuda(async=True)
+            # ood_target = Variable(ood_target, requires_grad=False).cuda()
         
         logs = architect.step(input1, target, input_search, target_search, lr, optimizer, 
                               unrolled=args.unrolled, epsilon=epsilon, upper_limit=upper_limit, 
