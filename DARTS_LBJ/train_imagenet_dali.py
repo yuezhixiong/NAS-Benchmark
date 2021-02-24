@@ -23,9 +23,10 @@ from nvidia.dali.plugin.pytorch import DALIClassificationIterator, LastBatchPoli
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
 
 parser = argparse.ArgumentParser("imagenet")
-parser.add_argument('--data', type=str, default='../data/imagenet/', help='location of the data corpus')
+parser.add_argument('--data', type=str, default='/data/dataset/imagenet/', help='location of the data corpus')
 parser.add_argument('--batch_size', type=int, default=128, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.1, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -66,8 +67,8 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
     pipeline = Pipeline(batch_size, num_threads, device_id, seed=12 + device_id)
     with pipeline:
         images, labels = fn.file_reader(file_root=data_dir,
-                                        shard_id=args.local_rank,
-                                        num_shards=args.world_size,
+                                        shard_id=0,
+                                        num_shards=1,
                                         random_shuffle=is_training,
                                         pad_last_batch=True,
                                         name="Reader")
@@ -88,12 +89,14 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, crop, siz
                                resize_x=crop,
                                resize_y=crop,
                                interp_type=types.INTERP_TRIANGULAR)
-            images = fn.ColorTwist(images,
-                                device=dali_device,
-                                brightness=0.4,
-                                saturation=0.4,
-                                contrast=0.4,
-                                hue=0.2)
+            twist = ops.ColorTwist(device=dali_device)
+            images = twist(images, saturation=0.4, contrast=0.4, brightness=0.4, hue=0.2)
+            # images = fn.ColorTwist(images,
+            #                     device=dali_device,
+            #                     brightness=0.4,
+            #                     saturation=0.4,
+            #                     contrast=0.4,
+            #                     hue=0.2)
             mirror = fn.coin_flip(probability=0.5)
         else:
             images = fn.image_decoder(images,
@@ -169,8 +172,8 @@ def main():
         weight_decay=args.weight_decay
         )
 
-    traindir = os.path.join(args.data, 'train')
-    validdir = os.path.join(args.data, 'val')
+    traindir = os.path.join(args.data, 'ILSVRC2012_img_train_caffemapping')
+    validdir = os.path.join(args.data, 'ILSVRC2012_img_val_caffemapping')
     # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     # train_data = dset.ImageFolder(
     #     traindir,
@@ -220,7 +223,7 @@ def main():
     pipe = create_dali_pipeline(batch_size=args.batch_size,
                                 num_threads=4,
                                 device_id=args.gpu,
-                                data_dir=valdir,
+                                data_dir=validdir,
                                 crop=crop_size,
                                 size=val_size,
                                 dali_cpu=dali_cpu,
@@ -283,14 +286,14 @@ def train(train_queue, model, criterion, optimizer):
             loss += args.auxiliary_weight*loss_aux
 
         loss.backward()
-        nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+        nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
         prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
         n = input.size(0)
-        objs.update(loss.data[0], n)
-        top1.update(prec1.data[0], n)
-        top5.update(prec5.data[0], n)
+        objs.update(loss.item(), n)
+        top1.update(prec1.item(), n)
+        top5.update(prec5.item(), n)
 
         if step % args.report_freq == 0:
             logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
@@ -315,9 +318,9 @@ def infer(valid_queue, model, criterion):
 
         prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
         n = input.size(0)
-        objs.update(loss.data[0], n)
-        top1.update(prec1.data[0], n)
-        top5.update(prec5.data[0], n)
+        objs.update(loss.item(), n)
+        top1.update(prec1.item(), n)
+        top5.update(prec5.item(), n)
 
         if step % args.report_freq == 0:
             logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
