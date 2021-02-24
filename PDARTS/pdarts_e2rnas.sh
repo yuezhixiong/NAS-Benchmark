@@ -9,7 +9,7 @@ python train_search.py \
 python copy_genotype.py --save $save
 
 python train_cifar.py \
---save $save --dataset CIFAR10 --layers 20 \
+--save $save --dataset cifar10 --layers 20 \
 --arch $save --gpu $gpu --auxiliary --cutout 
 
 # python test_adv.py --arch $save --gpu $gpu --auxiliary --cutout \
