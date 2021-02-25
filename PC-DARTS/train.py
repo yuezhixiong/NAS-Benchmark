@@ -19,7 +19,7 @@ from model import NetworkCIFAR as Network, NetworkImageNet as NetworkLarge
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--datapath', type=str, default='../data', help='location of the data corpus')
-parser.add_argument('--dataset', type=str, default='CIFAR10',choices=["svhn", "CIFAR10", "CIFAR100", "Sport8", "MIT67", "flowers102"])
+parser.add_argument('--dataset', type=str, default='cifar10',choices=["svhn", "cifar10", "cifar100", "Sport8", "MIT67", "flowers102"])
 parser.add_argument('--batch_size', type=int, default=96, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -44,6 +44,9 @@ args = parser.parse_args()
 args.model_path = '{}/batchsize{}_channel{}_{}'.format(args.save, args.batch_size, args.init_channels, args.dataset)
 #utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
+torch_version = int(torch.__version__[0])
+print('using torch', torch.__version__, torch_version)
+
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
     format=log_format, datefmt='%m/%d %I:%M:%S %p')
@@ -53,9 +56,9 @@ fh = logging.FileHandler(os.path.join(args.model_path, 'log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
-if args.dataset == "CIFAR100":
+if args.dataset == "cifar100":
   CLASSES = 100
-elif args.dataset == "CIFAR10":
+elif args.dataset == "cifar10":
   CLASSES = 10
 elif args.dataset == 'MIT67':
   dset_cls = dset.ImageFolder
@@ -115,10 +118,10 @@ def main():
     valid_data = dset.SVHN(root=args.datapath, split='test', download=True, transform=valid_transform)
   else:
     train_transform, valid_transform = utils.data_transforms(args.dataset, args.cutout, args.cutout_length)
-    if args.dataset == "CIFAR100":
+    if args.dataset == "cifar100":
       train_data = dset.CIFAR100(root=args.datapath, train=True, download=True, transform=train_transform)
       valid_data = dset.CIFAR100(root=args.datapath, train=False, download=True, transform=valid_transform)
-    elif args.dataset == "CIFAR10":
+    elif args.dataset == "cifar10":
       train_data = dset.CIFAR10(root=args.datapath, train=True, download=True, transform=train_transform)
       valid_data = dset.CIFAR10(root=args.datapath, train=False, download=True, transform=valid_transform)
     elif args.dataset == 'MIT67':
@@ -173,7 +176,7 @@ def train(train_queue, model, criterion, optimizer):
 
   for step, (input, target) in enumerate(train_queue):
     input = Variable(input).cuda()
-    target = Variable(target).cuda(async=True)
+    target = Variable(target).cuda()
 
     optimizer.zero_grad()
     logits, logits_aux = model(input)
@@ -187,9 +190,17 @@ def train(train_queue, model, criterion, optimizer):
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
-    objs.update(loss.data[0], n)
-    top1.update(prec1.data[0], n)
-    top5.update(prec5.data[0], n)
+    # objs.update(loss.data[0], n)
+    # top1.update(prec1.data[0], n)
+    # top5.update(prec5.data[0], n)
+    if torch_version:
+      objs.update(loss.data.item(), n)
+      top1.update(prec1.data.item(), n)
+      top5.update(prec5.data.item(), n)    
+    else:
+      objs.update(loss.data[0], n)
+      top1.update(prec1.data[0], n)
+      top5.update(prec5.data[0], n)
 
     if step % args.report_freq == 0:
       logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
@@ -207,17 +218,24 @@ def infer(valid_queue, model, criterion):
 #     input = input.cuda(non_blocking=True)
 #     target = target.cuda(non_blocking=True)
     input = Variable(input).cuda()
-    target = Variable(target).cuda(async=True)
+    target = Variable(target).cuda()
 #     with torch.no_grad():
     logits, _ = model(input)
     loss = criterion(logits, target)
 
     prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
-    objs.update(loss.data[0], n)
-    top1.update(prec1.data[0], n)
-    top5.update(prec5.data[0], n)
-
+    # objs.update(loss.data[0], n)
+    # top1.update(prec1.data[0], n)
+    # top5.update(prec5.data[0], n)
+    if torch_version:
+      objs.update(loss.data.item(), n)
+      top1.update(prec1.data.item(), n)
+      top5.update(prec5.data.item(), n)    
+    else:
+      objs.update(loss.data[0], n)
+      top1.update(prec1.data[0], n)
+      top5.update(prec5.data[0], n)
     if step % args.report_freq == 0:
       logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
