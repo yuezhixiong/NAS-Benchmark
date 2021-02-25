@@ -119,6 +119,12 @@ def main():
 
   # ood_transform, _ = utils._data_transforms_svhn(args)
   _, ood_transform = utils._data_transforms_svhn(args)
+  # SVHN_MEAN = [0.4377, 0.4438, 0.4728]
+  # SVHN_STD = [0.1980, 0.2010, 0.1970]
+  # ood_transform = transforms.Compose([
+  #   transforms.ToTensor(),
+  #   transforms.Normalize(SVHN_MEAN, SVHN_STD),
+  #   ])
   ood_data = dset.SVHN(root=args.data, split='train', download=True, transform=ood_transform)
   ood_indices = list(range(len(ood_data)))
   ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
@@ -172,7 +178,7 @@ def train(train_queue, model, criterion, optimizer, ood_queue):
     # ood_input, ood_target = next(iter(ood_queue))
     # ood_input = Variable(ood_input, requires_grad=False).cuda()
 
-    ood_logits, _ = model(ood_input)
+    ood_logits, _ = model(ood_input.cuda())
     ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
     loss += ood_loss
     # ood loss end
