@@ -142,12 +142,12 @@ def main():
     train_queue = torch.utils.data.DataLoader(
             train_data, batch_size=args.batch_size,
             sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-            pin_memory=True, num_workers=1)
+            pin_memory=True, num_workers=4)
 
     valid_queue = torch.utils.data.DataLoader(
             train_data, batch_size=args.batch_size,
             sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
-            pin_memory=True, num_workers=1)
+            pin_memory=True, num_workers=4)
 
     ood_queue = None
     if args.ood_outer or args.ood_lambda:
@@ -156,7 +156,7 @@ def main():
         ood_indices = list(range(len(ood_data)))
         ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
                     sampler=torch.utils.data.sampler.SubsetRandomSampler(ood_indices),
-                    pin_memory=True, num_workers=1)
+                    pin_memory=True, num_workers=4)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, float(args.epochs), eta_min=args.learning_rate_min)

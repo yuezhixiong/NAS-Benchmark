@@ -63,7 +63,7 @@ parser.add_argument('--constrain_min', type=float, default=0, help='constrain th
 parser.add_argument('--constrain_max', type=float, default=0, help='constrain the model size')
 # parser.add_argument('--temperature', default=False, action='store_true', help='use tau in alpha softmax of param_loss')
 parser.add_argument('--temperature', type=str, default='none', choices=['none', 'A', 'B', 'C', 'D', 'GumbelA', 'GumbelB'], help='use tau in alpha softmax of param_loss')
-parser.add_argument('--big_alpha', default=False, action='store_true', help='use big_alpha initialization in search')
+# parser.add_argument('--big_alpha', default=False, action='store_true', help='use big_alpha initialization in search')
 parser.add_argument('--fx', type=str, default='none', choices=['none', 'Sqr', 'Cub', 'Exp', 'Tan'], help='use fx transformation in fx_objective function before backward')
 parser.add_argument('--nop_later', type=int, default=0, help='add nop loss after n epoch in search')
 parser.add_argument('--adv_later', type=int, default=0, help='add adv loss after n epoch in search')

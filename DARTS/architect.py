@@ -141,7 +141,9 @@ class Architect(object):
       loss += torch.mul(alpha, u.t()).sum()
 
     loss = loss / 1e8
-      
+    
+    constrain_min = Variable(torch.Tensor([self.args.constrain_min])).cuda()
+    loss = torch.abs(constrain_min - loss)[0]
     return loss
 
 
