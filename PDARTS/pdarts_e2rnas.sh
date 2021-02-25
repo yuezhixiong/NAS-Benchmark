@@ -8,7 +8,7 @@ gpu=0
 
 # python copy_genotype.py --save $save
 
-python train_cifar.py \
+python train.py \
 --save $save --dataset cifar10 --layers 20 \
 --arch $save --gpu $gpu --auxiliary --cutout 
 
