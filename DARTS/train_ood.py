@@ -171,7 +171,6 @@ def train(train_queue, model, criterion, optimizer, ood_queue):
       ood_input, _ = next(ood_queue_iter)
     # ood_input, ood_target = next(iter(ood_queue))
     # ood_input = Variable(ood_input, requires_grad=False).cuda()
-    ood_target = Variable(ood_target, requires_grad=False).cuda()
 
     ood_logits, _ = model(ood_input)
     ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
