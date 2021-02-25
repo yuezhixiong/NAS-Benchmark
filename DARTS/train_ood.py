@@ -164,8 +164,13 @@ def train(train_queue, model, criterion, optimizer, ood_queue):
     loss = criterion(logits, target)
 
     # ood loss start
-    ood_input, ood_target = next(iter(ood_queue))
-    ood_input = Variable(ood_input, requires_grad=False).cuda()
+    try:
+      ood_input, _ = next(ood_queue_iter)
+    except:
+      ood_queue_iter = iter(ood_queue)
+      ood_input, _ = next(ood_queue_iter)
+    # ood_input, ood_target = next(iter(ood_queue))
+    # ood_input = Variable(ood_input, requires_grad=False).cuda()
     ood_target = Variable(ood_target, requires_grad=False).cuda()
 
     ood_logits, _ = model(ood_input)
@@ -180,7 +185,7 @@ def train(train_queue, model, criterion, optimizer, ood_queue):
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
     optimizer.step()
 
-    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+    prec1, prec5 = utils.accuracy(logits.detach(), target.detach(), topk=(1, 5))
     n = input.size(0)
     if torch.__version__[0]=='0':
       objs.update(loss.data[0], n)
