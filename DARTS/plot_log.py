@@ -46,6 +46,7 @@ def plot_loss_alpha(path):
     adv_loss = np.convolve(adv_loss, np.ones((N,))/N, mode='valid')[::N]
     ood_loss = np.convolve(ood_loss, np.ones((N,))/N, mode='valid')[::N]
     flp_loss = np.convolve(flp_loss, np.ones((N,))/N, mode='valid')[::N]
+    no_ood = np.isnan(sum(ood_loss))
     # acc_loss = acc_loss[:N]
     # nop_loss = nop_loss[:N]
 
@@ -55,7 +56,8 @@ def plot_loss_alpha(path):
     plt.plot(acc_loss, label='acc')
     plt.plot(nop_loss, label='nop')
     plt.plot(adv_loss, label='adv')
-    plt.plot(ood_loss, label='ood')
+    if not no_ood:
+        plt.plot(ood_loss, label='ood')
     plt.plot(flp_loss, label='flp')
     plt.legend()
     plt.xlabel('epoch')
@@ -63,6 +65,7 @@ def plot_loss_alpha(path):
     
     plt.subplot(222)
     data = np.load(os.path.join(path, 'sols.npy'))
+    # print('sols shape', data.shape)
     sols = []
     for l in data:
         # if len(l)>1:
@@ -90,13 +93,17 @@ def plot_loss_alpha(path):
     if n_obj >=3:
         plt.bar(x, sols_avg[2], bottom=sols_avg[0]+sols_avg[1], label='nop', alpha=0.5)
     if n_obj >=4:
-        plt.bar(x, sols_avg[3], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2], label='ood', alpha=0.5)
+        if not no_ood:
+            plt.bar(x, sols_avg[3], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2], label='ood', alpha=0.5)
+        else:
+            plt.bar(x, sols_avg[3], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2], label='flp', alpha=0.5)
     if n_obj >=5:
         plt.bar(x, sols_avg[4], bottom=sols_avg[0]+sols_avg[1]+sols_avg[2]+sols_avg[3], label='flp', alpha=0.5)
     plt.xlabel('epoch')
     plt.ylabel('MGDA weight')
     # plt.title(path)
     plt.legend()
+    print('objective nums', n_obj)
     print(path, sols.sum(0)) # acc, adv, nop
     # plt.savefig(os.path.join(fig_path, 'plot_loss_sol.pdf'), format='pdf')
     
