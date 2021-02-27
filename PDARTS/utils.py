@@ -5,6 +5,43 @@ import shutil
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 
+####### ood start ######
+def DE(in_prob, out_prob):
+    if in_prob.min() > out_prob.max():
+        DE = 0
+    elif in_prob.max() < out_prob.min():
+        DE = 1
+    else:
+#         if in_prob.min() < out_prob.min():
+#             start = out_prob.min()
+#             end = in_prob.max()
+#         else:
+#             start = in_prob.min()
+#             end = out_prob.max()
+#         for t in np.linspace(start, end, 10000):
+        DE = 1
+        for t in np.sort(in_prob):
+            DE_ = (np.sum(in_prob<t) + np.sum(out_prob>t))/(in_prob.shape[0]+out_prob.shape[0])
+            DE = min(DE, DE_)
+    return DE
+
+def fpr_tpr95(in_prob, out_prob):
+    if in_prob.min() > out_prob.max():
+        fpr = 0
+    elif in_prob.max() < out_prob.min():
+        fpr = 1
+    else:
+        fpr_ = 0
+        total = 0
+        for t in np.sort(in_prob):
+            tpr = np.sum(in_prob>=t)/in_prob.shape[0]
+            if tpr > 0.9495 and tpr < 0.9505:
+                fpr_ += np.sum(out_prob>t)/out_prob.shape[0]
+                total += 1
+        fpr = fpr_/total
+    return fpr
+####### ood end ######
+
 def clamp(X, lower_limit, upper_limit):
   return torch.max(torch.min(X, upper_limit), lower_limit)
 
@@ -126,6 +163,63 @@ def data_transforms(dataset,cutout, cutout_length):
       ])
     return train_transform, valid_transform
 
+def _data_transforms_cifar10(args):
+  CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
+  CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
+
+  train_transform = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+  ])
+  if args.cutout:
+    train_transform.transforms.append(Cutout(args.cutout_length))
+
+  valid_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+    ])
+  return train_transform, valid_transform
+
+def _data_transforms_cifar100(args):
+  CIFAR_MEAN = [0.5071, 0.4867, 0.4408]
+  CIFAR_STD = [0.2675, 0.2565, 0.2761]
+
+  train_transform = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+  ])
+  if args.cutout:
+    train_transform.transforms.append(Cutout(args.cutout_length))
+
+  valid_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
+    ])
+  return train_transform, valid_transform
+
+def _data_transforms_svhn(args):
+  SVHN_MEAN = [0.4377, 0.4438, 0.4728]
+  SVHN_STD = [0.1980, 0.2010, 0.1970]
+
+  train_transform = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(SVHN_MEAN, SVHN_STD),
+  ])
+  if args.cutout:
+    train_transform.transforms.append(Cutout(args.cutout_length))
+
+  valid_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(SVHN_MEAN, SVHN_STD),
+    ])
+  return train_transform, valid_transform
+  
 def count_parameters_in_MB(model):
   return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
 

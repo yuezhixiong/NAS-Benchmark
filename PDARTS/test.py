@@ -28,7 +28,6 @@ parser.add_argument('--auxiliary', action='store_true', default=True, help='use 
 parser.add_argument('--cutout', action='store_true', default=True, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--arch', type=str, default='PDARTS', help='which architecture to use')
-parser.add_argument('--tmp_data_dir', type=str, default='/tmp/cache/', help='temp data dir')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -83,7 +82,7 @@ def main():
     test_data = dset_cls(root=val_path, transform=test_transform)
   elif args.dataset == "flowers102":
     dset_cls = dset.ImageFolder
-    val_path = '%s/flowers102/test' % args.tmp_data_dir
+    val_path = '%s/flowers102/test' % args.data
     test_data = dset_cls(root=val_path, transform=test_transform)
   test_queue = torch.utils.data.DataLoader(
       test_data, batch_size=args.batch_size, shuffle=False, pin_memory=False, num_workers=2)
