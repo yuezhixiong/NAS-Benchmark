@@ -84,6 +84,7 @@ def main():
   results = infer(test_queue, ood_queue, model, criterion)
   results = ['{:.2%}'.format(x)[:-1] for x in results]
   print('auroc, aupr_in, aupr_out, fpr, DE', results)
+  print(results[-2])
   # logging.info('test_acc %f', test_acc)
 
 

@@ -85,7 +85,8 @@ def main():
   params_mb = params/mb
   macs_gb = macs/gb
   print('MACs: {:.2f}'.format(macs_mb), 'Params: {:.3f}'.format(params_mb))
-  print('{:.4f}'.format(macs_gb))
+  print('{:.2f}'.format(params_mb))
+  print('{:.2f}'.format(macs_mb))
   # logging.info('test_acc %f', test_acc)
 
 
