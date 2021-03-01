@@ -5,6 +5,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--log', type=str, default='config/')
 parser.add_argument('--config', type=str, default='train')
 parser.add_argument('--gpu', type=str, default='0')
+parser.add_argument('--test', default=False, action='store_true')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -50,18 +51,18 @@ def run(config):
             print('\t', k, config[keys][k])
     
 
-    print('saving at:', logpath)
+    logging.info("using arch " + save)
     init_channels = '36'
-
-    logging.info("now running train")
-    train_args = ['python', 'train.py', '--cutout', '--auxiliary']
-    train_args += ['--gpu', gpu]
-    train_args += ['--save', save]
-    train_args += ['--arch', save]
-    train_args += ['--init_channels', init_channels]
-    train_args += ['--dataset', dataset]
-    proc = subprocess.check_output(train_args)
-    logging.info('clean_acc ' + proc.decode('utf-8').split()[-1])
+    if not args.test:
+        logging.info("now running train")
+        train_args = ['python', 'train.py', '--cutout', '--auxiliary']
+        train_args += ['--gpu', gpu]
+        train_args += ['--save', save]
+        train_args += ['--arch', save]
+        train_args += ['--init_channels', init_channels]
+        train_args += ['--dataset', dataset]
+        proc = subprocess.check_output(train_args)
+        logging.info('clean_acc ' + proc.decode('utf-8').split()[-1])
 
     print('saving at:', logpath)
     model_path = '{}/channel{}_{}/best_model.pt'.format(save, init_channels, dataset)
