@@ -369,7 +369,7 @@ def train(train_queue, valid_queue, ood_queue, model, network_params, criterion,
 
             # ---- flops loss ----
             if args.flp_outer:
-                flp_loss = model.cal_flops()
+                flp_loss = model.cal_flops(args.constrain_min)
                 loss_data['flp'] = flp_loss.item()
                 grads['flp'] = list(torch.autograd.grad(flp_loss, model.arch_parameters(), retain_graph=True))
             # ---- end ----

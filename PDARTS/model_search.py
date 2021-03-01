@@ -235,7 +235,7 @@ class Network(nn.Module):
         else:
             return loss
 
-    def cal_flops(self):
+    def cal_flops(self, constrain_min):
         def compute_u(c, is_reduction):
             a = np.array([0, 0, 1024, 0, 20808*c + 2048*c*c, 64800*c + 2048*c*c, 10404*c + 1024*c*c, 36100*c + 1024*c*c]).reshape(8, 1)
             u = np.repeat(a, 14, axis=1)
@@ -265,6 +265,6 @@ class Network(nn.Module):
             loss += torch.mul(alpha, u).sum()
 
         loss = loss / 1e8
-        constrain_min = Variable(torch.Tensor([self.args.constrain_min])).cuda()
+        constrain_min = Variable(torch.Tensor([constrain_min])).cuda()
         loss = torch.abs(constrain_min - loss)[0]
         return loss
