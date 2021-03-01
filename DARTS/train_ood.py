@@ -74,7 +74,8 @@ def main():
     
   if args.dataset == 'cifar10':
       class_num = 10
-      train_transform, valid_transform = utils._data_transforms_cifar10(args)
+      _, valid_transform = utils._data_transforms_cifar10(args)
+      train_transform = valid_transform
       train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
       valid_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
   elif args.dataset == 'cifar100':

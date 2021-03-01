@@ -5,6 +5,16 @@ gpu=0
 # --save $save --gpu $gpu \
 # --layers 5 --add_layers 6 --add_layers 12 --dropout_rate 0.0 --dropout_rate 0.4 --dropout_rate 0.7
 
-python train.py \
---save $save --dataset cifar10 --layers 20 \
---arch $save --gpu $gpu --auxiliary --cutout 
+# python train.py \
+# --save $save --dataset cifar10 --layers 20 \
+# --arch $save --gpu $gpu --auxiliary --cutout 
+
+model="/home/yuezx/disk/yuezx/NAS-Benchmark/PDARTS/models/PDARTS_cifar10.pt"
+# python test_adv.py --arch $save --gpu $gpu \
+# --model_path $model
+
+python test_ood.py --arch $save --gpu $gpu \
+--model_path $model
+
+python test_flp.py --arch $save --gpu $gpu \
+--model_path $model
