@@ -40,6 +40,8 @@ CIFAR_CLASSES = 10
 
 
 def main():
+  if (args.arch != 'DARTS_V2') and args.model_path == ('models/DARTS_V2_best.pt'):
+    args.model_path = args.arch + '/channel36_cifar10/best_model.pt'
   if not torch.cuda.is_available():
     logging.info('no gpu device available')
     sys.exit(1)
