@@ -12,5 +12,12 @@ python train.py \
 --save $save --dataset cifar10 --layers 20 \
 --arch $save --gpu $gpu --auxiliary --cutout 
 
+# model="/data/yuezx/NAS-Benchmark/PDARTS/pdarts_e2rnas/cifar10_channel36/weights.pt"
 # python test_adv.py --arch $save --gpu $gpu \
-# --model_path 
+# --model_path $model
+
+# python test_ood.py --arch $save --gpu $gpu \
+# --model_path $model
+
+# python test_flp.py --arch $save --gpu $gpu \
+# --model_path $model
