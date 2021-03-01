@@ -122,14 +122,14 @@ else:
     adv = 'fast'
     inner_values = [(0, 1, 1)] # adv_lambda, acc_lambda, ood_lambda
     constrain = 'abs' # min, abs
-    constrain_mins = [4, 2] # [2, 3] # [1, 2, 3]
+    constrain_mins = [4, 2, 5] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
     adv_outer = 1
     ood_outer = 0
     flp_outer = 1
-    mgda = 0 # 1
+    mgda = 1 # 1
     grad_norms = ['l2'] #['l2', 'loss'] #'loss' # none, l2, loss+
     nop_later = 0 # 30
     adv_later = 0 # 30
@@ -139,7 +139,7 @@ else:
     search = 1
     train = 0
     test_adv = 0
-    datasets = ['cifar10'] #, 'cifar100']
+    datasets = ['cifar100'] #, 'cifar100']
 
     for dataset in datasets:
         for adv_lambda, acc_lambda, ood_lambda in inner_values:

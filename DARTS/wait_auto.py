@@ -4,8 +4,9 @@ import time, re
 import numpy as np
 from datetime import datetime
  
-cmd = ['python', 'auto.py']
-memo_required = 27000
+# cmd = ['python', 'auto.py']
+cmd = ['python', 'train_imagenet_dali.py', '--arch', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100', '--save', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100']
+memo_required = 27000, # 17000
  
 # def gpu_info():
 #     gpu_status = os.popen('nvidia-smi | grep %').read().split('|')
