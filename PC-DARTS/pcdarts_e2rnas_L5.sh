@@ -1,5 +1,5 @@
 save=pcdarts_e2rnas_L5
-gpu=0
+gpu=$1
 
 python train_search.py \
 --save $save --gpu $gpu --dataset cifar10 --cutout \
