@@ -1,5 +1,5 @@
 save=pdarts_e2rnas
-gpu=0
+gpu=$1
 
 python train_search.py \
 --save $save --gpu $gpu \
