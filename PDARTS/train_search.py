@@ -387,6 +387,7 @@ def train(train_queue, valid_queue, ood_queue, model, network_params, criterion,
                 loss_adv = criterion(adv_logits, target_search)
                 loss_data['adv'] = loss_adv.item()
                 grads['adv'] = list(torch.autograd.grad(loss_adv, model.arch_parameters(), retain_graph=True))
+                del adv_input
             # ---- end ----
 
             # ---- ood loss ----
@@ -401,6 +402,7 @@ def train(train_queue, valid_queue, ood_queue, model, network_params, criterion,
                 ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
                 loss_data['ood'] = ood_loss.item()
                 grads['ood'] = list(torch.autograd.grad(ood_loss, model.arch_parameters(), retain_graph=True))
+                del ood_input
             # ---- end ----
 
             gn = gradient_normalizers(grads, loss_data, normalization_type=args.grad_norm) # loss+, loss, l2
