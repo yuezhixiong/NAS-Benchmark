@@ -141,9 +141,9 @@ def main():
 
     if args.ood_outer or args.ood_inner:
         ood_data = dset.SVHN(root=args.tmp_data_dir, split='train', download=True, transform=train_transform)
-
+        ood_indices = list(range(len(ood_data)))
         ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
-                    sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
+                    sampler=torch.utils.data.sampler.SubsetRandomSampler(ood_indices),
                     pin_memory=True, num_workers=args.workers)
     else:
         ood_queue = None
