@@ -120,14 +120,14 @@ if args.config != 'none':
 else:
     copyfile('auto.py', os.path.join(logpath, 'auto.py'))
     adv = 'fast'
-    inner_values = [(0, 1, 0)] # adv_lambda, acc_lambda, ood_lambda
+    inner_values = [(0, 1, 1)] # adv_lambda, acc_lambda, ood_lambda
     constrain = 'abs' # min, abs
     constrain_mins = [4, 5, 6] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
     adv_outer = 1
-    ood_outer = 1
+    ood_outer = 0
     flp_outer = 1
     mgda = 1 # 1
     grad_norms = ['l2'] #['l2', 'loss'] #'loss' # none, l2, loss+
@@ -158,7 +158,7 @@ else:
                         if acc_lambda:
                             config_name += '_acc' + str(acc_lambda)
                         if ood_lambda:
-                            config_name += '_ood' + str(ood_lambda)
+                            config_name += '_oodS' + str(ood_lambda)
 
                         config_name += '_UL'
                         
@@ -202,7 +202,7 @@ else:
                         config_parser.read_dict(config_dict)
                         config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
                         config_parser.write(open(os.path.join('models/', config_name + '.ini'), 'w'))
-                        config_parser.write(open(os.path.join(config_name, config_name + '.ini'), 'w'))
+                        # config_parser.write(open(os.path.join(config_name, config_name + '.ini'), 'w'))
 
                         logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
                         run(config_parser)

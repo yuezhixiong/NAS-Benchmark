@@ -318,7 +318,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             if args.ood_lambda:
                 ood_logits = model(ood_input)
                 ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
-                loss += args.ood_lambda * ood_loss
+                loss += args.ood_lambda * epoch/args.epoch * ood_loss
             
             optimizer.zero_grad()
             loss.backward()
