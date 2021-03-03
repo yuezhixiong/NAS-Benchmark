@@ -4,7 +4,7 @@ import time, re
 import numpy as np
 from datetime import datetime
  
-cmd = ['python', 'pdarts_e2rnas.sh']
+cmd = ['sh', 'pdarts_e2rnas.sh']
 # cmd = ['python', 'train_imagenet_dali.py', '--arch', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100', '--save', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100']
 memo_required = 27000 # 17000
  
@@ -36,7 +36,7 @@ def narrow_setup(interval=10):
         time.sleep(interval)
 
     print('find free gpu:', gpu_id)
-    cmd_gpu = cmd + ['--gpu'] + [str(gpu_id)]
+    cmd_gpu = cmd + [str(gpu_id)]
     print('now running:', cmd_gpu)
     os.system(cmd_gpu)
 
