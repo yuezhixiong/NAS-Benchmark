@@ -4,7 +4,7 @@ gpu=0
 python train_search.py \
 --save $save --gpu $gpu \
 --layers 5 --add_layers 6 --add_layers 12 --dropout_rate 0.0 --dropout_rate 0.4 --dropout_rate 0.7 \
---nop_outer --adv_outer --flp_outer --ood_inner --MGDA --constrain abs --constrain_min 3 --grad_norm l2
+--nop_outer --adv_outer --flp_outer --ood_outer --MGDA --constrain abs --constrain_min 3 --grad_norm l2
 
 python copy_genotype.py --save $save
 
