@@ -32,7 +32,7 @@ if __name__ == '__main__':
         time.sleep(1)
         total, used = check_mem(cuda_device)
         print('GPU{}: {}/{}'.format(cuda_device, used, total), end='\r')
-        if int(used) <= block_size+1000:
+        if int(used) - block_size <= 1000:
             print('Protection terminated, GPU{} released'.format(cuda_device))
             break
     print('Done')

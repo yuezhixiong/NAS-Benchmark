@@ -120,14 +120,14 @@ if args.config != 'none':
 else:
     copyfile('auto.py', os.path.join(logpath, 'auto.py'))
     adv = 'fast'
-    inner_values = [(0, 1, 1)] # adv_lambda, acc_lambda, ood_lambda
+    inner_values = [(0, 1, 0)] # adv_lambda, acc_lambda, ood_lambda
     constrain = 'abs' # min, abs
-    constrain_mins = [4, 2, 5] # [2, 3] # [1, 2, 3]
+    constrain_mins = [4, 5, 6] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
     adv_outer = 1
-    ood_outer = 0
+    ood_outer = 1
     flp_outer = 1
     mgda = 1 # 1
     grad_norms = ['l2'] #['l2', 'loss'] #'loss' # none, l2, loss+
@@ -139,7 +139,7 @@ else:
     search = 1
     train = 0
     test_adv = 0
-    datasets = ['cifar100'] #, 'cifar100']
+    datasets = ['cifar10'] #, 'cifar100']
 
     for dataset in datasets:
         for adv_lambda, acc_lambda, ood_lambda in inner_values:
@@ -150,8 +150,8 @@ else:
                         #     config_name = 'bigAlphaInit'
                         # else:
                         #     config_name = 'randomInit'
-
-                        config_name = 'LL'
+                        config_name = 'woOodAug_'
+                        config_name += 'LL'
                         if adv != 'none':
                             if adv_lambda:
                                 config_name += '_adv' + str(adv_lambda)
@@ -190,6 +190,7 @@ else:
 
                         if dataset != 'cifar10':
                             config_name += '_' + dataset
+                            
                         
                         # save_path = os.path.join(logpath, config_name)
 
@@ -200,6 +201,8 @@ else:
                         
                         config_parser.read_dict(config_dict)
                         config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
+                        config_parser.write(open(os.path.join('models/', config_name + '.ini'), 'w'))
+                        config_parser.write(open(os.path.join(config_name, config_name + '.ini'), 'w'))
 
                         logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
                         run(config_parser)
