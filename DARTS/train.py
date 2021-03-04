@@ -64,6 +64,7 @@ def main():
 
   np.random.seed(args.seed)
   torch.cuda.set_device(args.gpu)
+  torch.set_num_threads(8)
   cudnn.benchmark = True
   torch.manual_seed(args.seed)
   cudnn.enabled=True
@@ -111,10 +112,10 @@ def main():
   
 
   train_queue = torch.utils.data.DataLoader(
-      train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4)
+      train_data, batch_size=args.batch_size, shuffle=True, pin_memory=False, num_workers=4)
 
   valid_queue = torch.utils.data.DataLoader(
-      valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=4)
+      valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=False, num_workers=4)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
 
