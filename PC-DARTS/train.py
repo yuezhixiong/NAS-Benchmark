@@ -41,7 +41,7 @@ parser.add_argument('--arch', type=str, default='adv_nop', help='which architect
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 args = parser.parse_args()
 
-args.model_path = '{}/batchsize{}_channel{}_{}'.format(args.save, args.batch_size, args.init_channels, args.dataset)
+args.model_path = '{}/channel{}_{}'.format(args.save, args.init_channels, args.dataset)
 #utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 torch_version = int(torch.__version__[0])
@@ -165,7 +165,7 @@ def main():
         best_acc = valid_acc
     logging.info('valid_acc %f, best_acc %f', valid_acc, best_acc)
 
-    utils.save(model, os.path.join(args.model_path, 'weights.pt'))
+    utils.save(model, os.path.join(args.model_path, 'best_model.pt'))
 
 
 def train(train_queue, model, criterion, optimizer):
