@@ -201,8 +201,8 @@ else:
                         
                         config_parser.read_dict(config_dict)
                         config_parser.write(open(os.path.join(logpath, config_name + '.ini'), 'w'))
-                        config_parser.write(open(os.path.join('models/', config_name + '.ini'), 'w'))
-                        # config_parser.write(open(os.path.join(config_name, config_name + '.ini'), 'w'))
-
+                        
                         logging.info("now running: " + config_name + ' at gpu: ' + args.gpu)
                         run(config_parser)
+                        config_parser.write(open(os.path.join('models/', config_name + '.ini'), 'w'))
+                        config_parser.write(open(os.path.join(config_name, config_name + '.ini'), 'w'))
