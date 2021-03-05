@@ -1,9 +1,11 @@
 save=pcdarts_e2rnas_outer
 gpu=$1
 
-python train_search.py \
---save $save --gpu $gpu --dataset cifar10 --cutout \
---nop_outer --adv_outer --flp_outer --MGDA --constrain abs --constrain_min 3 --grad_norm l2
+# python train_search.py \
+# --save $save --gpu $gpu --dataset cifar10 --cutout \
+# --nop_outer --adv_outer --flp_outer --MGDA --constrain abs --constrain_min 3 --grad_norm l2
+
+# python copy_genotypes.py --save $save
 
 python train.py \
 --dataset cifar10 --gpu $gpu --save $save --arch $save \
