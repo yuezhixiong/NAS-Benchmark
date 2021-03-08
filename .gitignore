@@ -6,17 +6,9 @@ data/*
 
 *.pyc
 
-DARTS_LBJ/*-EXP-*
-
-DARTS_LBJ/search-*
-
 *.ipynb
 
 *.pdf
 
 */*/
-DARTS_LBJ/E2RNAS.zip
-DARTS_LBJ/normal
-DARTS_LBJ/reduction
-
-DARTS/utils.py
+DARTS_LBJ/*
