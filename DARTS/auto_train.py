@@ -101,7 +101,8 @@ if args.config != 'none':
             print('now using ini:', ini)
             config_parser.read(ini)
             run(config_parser)
-    else:   
+    else:
+        args.config = 'models/' + args.config + '.ini'
         config_parser.read(args.config)
         run(config_parser)
 
