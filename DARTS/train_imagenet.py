@@ -30,7 +30,7 @@ parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=250, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=48, help='num of init channels')
 parser.add_argument('--layers', type=int, default=14, help='total number of layers')
-parser.add_argument('--auxiliary', action='store_true', default=False, help='use auxiliary tower')
+parser.add_argument('--auxiliary', action='store_true', default=True, help='use auxiliary tower')
 parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight for auxiliary loss')
 parser.add_argument('--drop_path_prob', type=float, default=0, help='drop path probability')
 parser.add_argument('--save', type=str, default='DARTS_V2', help='experiment name')
@@ -197,20 +197,21 @@ def train(train_queue, model, criterion, optimizer):
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
     optimizer.step()
 
-    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-    n = input.size(0)
+    with torch.no_grad():
+      prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+      n = input.size(0)
 
-    if torch_version:
-      objs.update(loss.data.item(), n)
-      top1.update(prec1.data.item(), n)
-      top5.update(prec5.data.item(), n)    
-    else:
-      objs.update(loss.data[0], n)
-      top1.update(prec1.data[0], n)
-      top5.update(prec5.data[0], n)
+      if torch_version:
+        objs.update(loss.data.item(), n)
+        top1.update(prec1.data.item(), n)
+        top5.update(prec5.data.item(), n)    
+      else:
+        objs.update(loss.data[0], n)
+        top1.update(prec1.data[0], n)
+        top5.update(prec5.data[0], n)
 
-    if step % args.report_freq == 0:
-      logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+      if step % args.report_freq == 0:
+        logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
   return top1.avg, objs.avg
 
@@ -221,24 +222,25 @@ def infer(valid_queue, model, criterion):
   top5 = utils.AvgrageMeter()
   model.eval()
 
-  for step, (input, target) in enumerate(valid_queue):
-    input = Variable(input, volatile=True).cuda()
-    if torch_version:
-      target = Variable(target, volatile=True).cuda(non_blocking=True)
-    else:
-      target = Variable(target, volatile=True).cuda()
+  with torch.no_grad():
+    for step, (input, target) in enumerate(valid_queue):
+      input = Variable(input, volatile=True).cuda()
+      if torch_version:
+        target = Variable(target, volatile=True).cuda(non_blocking=True)
+      else:
+        target = Variable(target, volatile=True).cuda()
 
-    logits, _ = model(input)
-    loss = criterion(logits, target)
+      logits, _ = model(input)
+      loss = criterion(logits, target)
 
-    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-    n = input.size(0)
-    objs.update(loss.data[0], n)
-    top1.update(prec1.data[0], n)
-    top5.update(prec5.data[0], n)
+      prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+      n = input.size(0)
+      objs.update(loss.data[0], n)
+      top1.update(prec1.data[0], n)
+      top5.update(prec5.data[0], n)
 
-    if step % args.report_freq == 0:
-      logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+      if step % args.report_freq == 0:
+        logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
   return top1.avg, top5.avg, objs.avg
 

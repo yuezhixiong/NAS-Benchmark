@@ -65,11 +65,27 @@ def main():
   criterion = criterion.cuda()
 
   validdir = os.path.join(args.data, 'ILSVRC2012_img_val_caffemapping/')
-  if args.train:
-    traindir = os.path.join(args.data, 'ILSVRC2012_img_train_caffemapping/')
-    validdir = traindir
 
   normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+  traindir = os.path.join(args.data, 'ILSVRC2012_img_train_caffemapping')
+  train_data = dset.ImageFolder(
+    traindir,
+    transforms.Compose([
+      transforms.RandomResizedCrop(224),
+      transforms.RandomHorizontalFlip(),
+      transforms.ColorJitter(
+        brightness=0.4,
+        contrast=0.4,
+        saturation=0.4,
+        hue=0.2),
+      transforms.ToTensor(),
+      normalize,
+    ]))
+
+  train_queue = torch.utils.data.DataLoader(
+    train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4)
+
   valid_data = dset.ImageFolder(
     validdir,
     transforms.Compose([
@@ -81,6 +97,9 @@ def main():
 
   valid_queue = torch.utils.data.DataLoader(
     valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=4)
+
+  if args.train:
+    valid_queue = train_queue
 
   model.drop_path_prob = args.drop_path_prob
   valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)
@@ -114,6 +133,9 @@ def infer(valid_queue, model, criterion):
 
     if step % args.report_freq == 0:
       logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+
+    if args.train and step >= 499:
+        break 
 
   return top1.avg, top5.avg, objs.avg
 

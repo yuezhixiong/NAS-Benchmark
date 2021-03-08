@@ -120,9 +120,9 @@ if args.config != 'none':
 else:
     copyfile('auto.py', os.path.join(logpath, 'auto.py'))
     adv = 'fast'
-    inner_values = [(0, 1, 1)] # adv_lambda, acc_lambda, ood_lambda
+    inner_values = [(0, 1, 1), (0, 1, 0)] # adv_lambda, acc_lambda, ood_lambda
     constrain = 'abs' # min, abs
-    constrain_mins = [5, 6] # [2, 3] # [1, 2, 3]
+    constrain_mins = [7] # [2, 3] # [1, 2, 3]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
