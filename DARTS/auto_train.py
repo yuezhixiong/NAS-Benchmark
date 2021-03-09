@@ -6,6 +6,7 @@ parser.add_argument('--log', type=str, default='config/')
 parser.add_argument('--config', type=str, default='train')
 parser.add_argument('--gpu', type=str, default='0')
 parser.add_argument('--test', default=False, action='store_true')
+parser.add_argument('--flp', default=False, action='store_true')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -67,24 +68,26 @@ def run(config):
     print('saving at:', logpath)
     model_path = '{}/channel{}_{}/best_model.pt'.format(save, init_channels, dataset)
     logging.info("now running tests")
+    logging.info("using model " + model_path)
     
-    test_args = ['python', 'test.py', '--gpu', gpu, '--arch', save, '--model_path', model_path, '--dataset', dataset, '--init_channels', init_channels]
-    proc = subprocess.check_output(test_args)
-    logging.info('test_acc ' + proc.decode('utf-8').split()[-1]) 
+    if not args.flp:
+        test_args = ['python', 'test.py', '--gpu', gpu, '--arch', save, '--model_path', model_path, '--dataset', dataset, '--init_channels', init_channels]
+        proc = subprocess.check_output(test_args)
+        logging.info('test_acc ' + proc.decode('utf-8').split()[-1]) 
 
-    attack = 'PGD'
-    attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
-    attack_args += ['--gpu', gpu, '--model_path', model_path, '--dataset', dataset]
-    attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
-    proc = subprocess.check_output(attack_args)
-    logging.info('PGD_acc ' + proc.decode('utf-8').split()[-1])
+        attack = 'PGD'
+        attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
+        attack_args += ['--gpu', gpu, '--model_path', model_path, '--dataset', dataset]
+        attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
+        proc = subprocess.check_output(attack_args)
+        logging.info('PGD_acc ' + proc.decode('utf-8').split()[-1])
 
-    ood_args = ['python', 'test_ood.py', '--arch', save, '--dataset', dataset, '--model_path', model_path]
-    proc = subprocess.check_output(ood_args)
-    proc_info = proc.decode('utf-8').split()
-    logging.info('OOD frp ' + proc_info[-1])
+        ood_args = ['python', 'test_ood.py', '--arch', save, '--dataset', dataset, '--model_path', model_path]
+        proc = subprocess.check_output(ood_args)
+        proc_info = proc.decode('utf-8').split()
+        logging.info('OOD frp ' + proc_info[-1])
 
-    flp_args = ['python', 'test_flp.py', '--arch', save, '--model_path', model_path]
+    flp_args = ['python', 'test_flp.py', '--arch', save, '--model_path', model_path, '--dataset', dataset]
     proc = subprocess.check_output(flp_args)
     proc_info = proc.decode('utf-8').split()
     logging.info('Params in MB ' + proc_info[-2])
