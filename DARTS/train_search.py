@@ -27,7 +27,7 @@ parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min 
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
-parser.add_argument('--gpu', type=int, default=3, help='gpu device id')
+parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=50, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8, help='total number of layers')
@@ -35,7 +35,7 @@ parser.add_argument('--model_path', type=str, default='saved_models', help='path
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout') # false
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
 parser.add_argument('--drop_path_prob', type=float, default=0.3, help='drop path probability')
-parser.add_argument('--save', type=str, default='adv_nop_etp', help='experiment name')
+parser.add_argument('--save', type=str, default='test', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
@@ -84,6 +84,11 @@ alphas_normals = []
 alphas_reduces = []
 
 def main():
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+    # mem_size = 1000
+    # for i in range(10):
+    #     hold_mem = torch.cuda.FloatTensor(256,1024,mem_size)
+    #     del hold_mem
     if not torch.cuda.is_available():
         logging.info('no gpu device available')
         sys.exit(1)
@@ -98,6 +103,7 @@ def main():
     logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
 
+    
     if args.dataset == 'cifar10':
         class_num = 10
         train_transform, _ = utils._data_transforms_cifar10(args)
@@ -318,7 +324,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             if args.ood_lambda:
                 ood_logits = model(ood_input)
                 ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
-                loss += args.ood_lambda * epoch/args.epochs * ood_loss
+                loss += args.ood_lambda * ood_loss #* epoch/args.epochs # smooth ood_training
             
             optimizer.zero_grad()
             loss.backward()
@@ -357,7 +363,6 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
             loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
             optimizer.step()
-
 
         prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
         objs.update(loss.data[0], n)

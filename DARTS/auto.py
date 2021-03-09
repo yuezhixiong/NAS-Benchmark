@@ -158,7 +158,7 @@ else:
                         if acc_lambda:
                             config_name += '_acc' + str(acc_lambda)
                         if ood_lambda:
-                            config_name += '_oodS' + str(ood_lambda)
+                            config_name += '_ood' + str(ood_lambda) #_oodS
 
                         config_name += '_UL'
                         

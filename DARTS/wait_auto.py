@@ -3,11 +3,10 @@ import sys
 import time, re
 import numpy as np
 from datetime import datetime
- 
-cmd = ['python', 'auto.py']
+
 # cmd = ['python', 'train_imagenet.py']
 # cmd = ['python', 'train_imagenet_dali.py', '--arch', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100', '--save', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100']
-memo_required = 29000 # 17000
+memo_required = 27000
  
 # def gpu_info():
 #     gpu_status = os.popen('nvidia-smi | grep %').read().split('|')
@@ -15,7 +14,19 @@ memo_required = 29000 # 17000
 #     gpu_power = int(gpu_status[1].split('   ')[-1].split('/')[0].split('W')[0].strip())
 #     # print(gpu_status)
 #     return gpu_power, gpu_memory
- 
+
+wait_path = 'config/waiting/'
+run_path = 'config/running/'
+
+def get_task():
+    
+    ini_name = os.listdir(wait_path)[0]
+    ini_path = os.path.join(wait_path, ini_name)
+    os.system('mv '+ini_path+' '+run_path)
+    ini_path = os.path.join(run_path, ini_name)
+    cmd = ['python', 'auto.py', '--config', ini_path]
+    return cmd, ini_name
+
 def free_gpu():
     gpu_memo = os.popen('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free').read()
     gpu_memo = re.findall('(\d+) MiB', gpu_memo)
@@ -26,25 +37,30 @@ def free_gpu():
         gpu_id = np.argmax(gpu_memo)
     return gpu_id
 
-def narrow_setup(interval=10):
+def narrow_setup(interval=20):
     # gpu_power, gpu_memory = gpu_info()
     error = 1
-    while error != 0:
+
+    gpu_id = free_gpu()
+    while gpu_id < 0:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         gpu_id = free_gpu()
-        while gpu_id < 0:
-            print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-            gpu_id = free_gpu()
-            time.sleep(interval)
+        time.sleep(interval)
 
-        print('find free gpu:', gpu_id)
-        cmd_gpu = cmd + ['--gpu'] + [str(gpu_id)]
-        print('now running:', cmd_gpu)
-        # os.system(cmd_gpu)
+    print('find free gpu:', gpu_id)
+    cmd, ini_name = get_task()
+    print('get task:', cmd)
+    cmd_gpu = cmd + ['--gpu'] + [str(gpu_id)]
+    print('now running:', cmd_gpu)
+    ini_path = os.path.join(run_path, ini_name)
 
-        result = subprocess.run(cmd_gpu)
-        error = result.returncode
-        if error != 0:
-            print('An error occurred, keep looking')
+    result = subprocess.run(cmd_gpu)
+    error = result.returncode
+    print('run code:', error)
+    if error != 0:
+        print('An error occurred, exit')
+        os.system('mv '+ini_path+' '+wait_path)
+        exit()
 
     # i = 0
     # while gpu_memory > 1000 or gpu_power > 40:  # set waiting condition
