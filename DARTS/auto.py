@@ -120,9 +120,9 @@ if args.config != 'none':
 else:
     copyfile('auto.py', os.path.join(logpath, 'auto.py'))
     adv = 'fast'
-    inner_values = [(0, 1, 1), (0, 1, 0)] # adv_lambda, acc_lambda, ood_lambda
+    inner_values = [(0, 1, 0)] # adv_lambda, acc_lambda, ood_lambda (0, 1, 1)
     constrain = 'abs' # min, abs
-    constrain_mins = [7] # [2, 3] # [1, 2, 3]
+    constrain_mins = [3.2, 3.4, 3.6, 3.8] # [4.8, 4.6, 4.4, 4.2]
     temperature = 'none' # GumbelA, none, A
     fxs = ['none'] # ['Sqr', 'Cub', 'Exp', 'Tan'] # none, Sqr, Cub, Exp, Tan
     nop_outer = 1
@@ -139,7 +139,7 @@ else:
     search = 1
     train = 0
     test_adv = 0
-    datasets = ['cifar100'] #, 'cifar100']
+    datasets = ['cifar10'] #, 'cifar100']
 
     for dataset in datasets:
         for adv_lambda, acc_lambda, ood_lambda in inner_values:
@@ -150,7 +150,7 @@ else:
                         #     config_name = 'bigAlphaInit'
                         # else:
                         #     config_name = 'randomInit'
-                        config_name = 'woOodAug_'
+                        config_name = '' #'woOodAug_'
                         config_name += 'LL'
                         if adv != 'none':
                             if adv_lambda:

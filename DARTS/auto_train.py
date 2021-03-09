@@ -7,6 +7,7 @@ parser.add_argument('--config', type=str, default='train')
 parser.add_argument('--gpu', type=str, default='0')
 parser.add_argument('--test', default=False, action='store_true')
 parser.add_argument('--flp', default=False, action='store_true')
+parser.add_argument('--no_adv', default=False, action='store_true')
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -75,12 +76,13 @@ def run(config):
         proc = subprocess.check_output(test_args)
         logging.info('test_acc ' + proc.decode('utf-8').split()[-1]) 
 
-        attack = 'PGD'
-        attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
-        attack_args += ['--gpu', gpu, '--model_path', model_path, '--dataset', dataset]
-        attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
-        proc = subprocess.check_output(attack_args)
-        logging.info('PGD_acc ' + proc.decode('utf-8').split()[-1])
+        if not args.no_adv:
+            attack = 'PGD'
+            attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
+            attack_args += ['--gpu', gpu, '--model_path', model_path, '--dataset', dataset]
+            attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
+            proc = subprocess.check_output(attack_args)
+            logging.info('PGD_acc ' + proc.decode('utf-8').split()[-1])
 
         ood_args = ['python', 'test_ood.py', '--arch', save, '--dataset', dataset, '--model_path', model_path]
         proc = subprocess.check_output(ood_args)
