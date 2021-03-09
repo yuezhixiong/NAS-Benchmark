@@ -23,27 +23,27 @@ gpu = args.gpu
 def run(config):
     print('saving at:', logpath)
     save = config.get('other', 'save')
-    big_alpha = config.getboolean('other', 'big_alpha')
+    # big_alpha = config.getboolean('other', 'big_alpha')
     dataset = config.get('other', 'dataset')
-    epoch = config.get('other', 'epoch')
+    # epoch = config.get('other', 'epoch')
 
-    adv = config.get('inner', 'adv')
-    adv_lambda = config.get('inner', 'adv_lambda')
-    acc_lambda = config.get('inner', 'acc_lambda')
-    ood_lambda = config.get('inner', 'ood_lambda')
+    # adv = config.get('inner', 'adv')
+    # adv_lambda = config.get('inner', 'adv_lambda')
+    # acc_lambda = config.get('inner', 'acc_lambda')
+    # ood_lambda = config.get('inner', 'ood_lambda')
 
-    nop_outer = config.getboolean('outer', 'nop_outer')
-    adv_outer = config.getboolean('outer', 'adv_outer')
-    ood_outer = config.getboolean('outer', 'ood_outer')
-    flp_outer = config.getboolean('outer', 'flp_outer')    
-    mgda = config.getboolean('outer', 'mgda')
-    grad_norm = config.get('outer', 'grad_norm')
-    constrain = config.get('outer', 'constrain')
-    constrain_min = config.get('outer', 'constrain_min')
-    temperature = config.get('outer', 'temperature')
-    fx = config.get('outer', 'fx')
-    nop_later = config.get('outer', 'nop_later')
-    adv_later = config.get('outer', 'adv_later')
+    # nop_outer = config.getboolean('outer', 'nop_outer')
+    # adv_outer = config.getboolean('outer', 'adv_outer')
+    # ood_outer = config.getboolean('outer', 'ood_outer')
+    # flp_outer = config.getboolean('outer', 'flp_outer')    
+    # mgda = config.getboolean('outer', 'mgda')
+    # grad_norm = config.get('outer', 'grad_norm')
+    # constrain = config.get('outer', 'constrain')
+    # constrain_min = config.get('outer', 'constrain_min')
+    # temperature = config.get('outer', 'temperature')
+    # fx = config.get('outer', 'fx')
+    # nop_later = config.get('outer', 'nop_later')
+    # adv_later = config.get('outer', 'adv_later')
 
     for keys in config:
         print(keys)
@@ -66,13 +66,11 @@ def run(config):
 
     print('saving at:', logpath)
     model_path = '{}/channel{}_{}/best_model.pt'.format(save, init_channels, dataset)
-    logging.info("now running test_adv")
-    # attack = 'FGSM'
-    # attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
-    # attack_args += ['--gpu', gpu, '--model_path', model_path, '--dataset', dataset]
-    # attack_args += ['--attack', attack, '--arch', save, '--init_channels', init_channels]
-    # proc = subprocess.check_output(attack_args)
-    # logging.info('FGSM_acc ' + proc.decode('utf-8').split()[-1])
+    logging.info("now running tests")
+    
+    test_args = ['python', 'test.py', '--gpu', gpu, '--arch', save, '--model_path', model_path, '--dataset', dataset, '--init_channels', init_channels]
+    proc = subprocess.check_output(test_args)
+    logging.info('test_acc ' + proc.decode('utf-8').split()[-1]) 
 
     attack = 'PGD'
     attack_args = ['python', 'test_adv.py', '--cutout', '--auxiliary']
@@ -81,12 +79,12 @@ def run(config):
     proc = subprocess.check_output(attack_args)
     logging.info('PGD_acc ' + proc.decode('utf-8').split()[-1])
 
-    ood_args = ['python', 'test_ood.py', '--arch', save]
+    ood_args = ['python', 'test_ood.py', '--arch', save, '--dataset', dataset, '--model_path', model_path]
     proc = subprocess.check_output(ood_args)
     proc_info = proc.decode('utf-8').split()
     logging.info('OOD frp ' + proc_info[-1])
 
-    flp_args = ['python', 'test_flp.py', '--arch', save]
+    flp_args = ['python', 'test_flp.py', '--arch', save, '--model_path', model_path]
     proc = subprocess.check_output(flp_args)
     proc_info = proc.decode('utf-8').split()
     logging.info('Params in MB ' + proc_info[-2])
