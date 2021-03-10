@@ -44,7 +44,10 @@ parser.add_argument('--parallel', action='store_true', default=False, help='data
 args = parser.parse_args()
 
 # args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
-args.save = '{}/channel{}_{}'.format(args.save, args.init_channels, 'imagenet')
+if (args.arch != 'DARTS_V2') and args.save == ('DARTS_V2'):
+  args.save = '{}/channel{}_{}'.format(args.arch, args.init_channels, 'imagenet')
+else:
+  args.save = '{}/channel{}_{}'.format(args.save, args.init_channels, 'imagenet')
 if not os.path.isdir(args.save):
   os.makedirs(args.save)
 # utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
