@@ -17,10 +17,12 @@ memo_required = 27000
 
 wait_path = 'config/waiting/'
 run_path = 'config/running/'
+done_path = 'config/done/'
 
 def get_task():
-    
-    ini_name = os.listdir(wait_path)[0]
+    task_list = os.listdir(wait_path)
+    print(task_list)
+    ini_name = task_list[0]
     ini_path = os.path.join(wait_path, ini_name)
     os.system('mv '+ini_path+' '+run_path)
     ini_path = os.path.join(run_path, ini_name)
@@ -37,7 +39,7 @@ def free_gpu():
         gpu_id = np.argmax(gpu_memo)
     return gpu_id
 
-def narrow_setup(interval=20):
+def narrow_setup(interval=200):
     # gpu_power, gpu_memory = gpu_info()
     error = 1
 
@@ -56,12 +58,13 @@ def narrow_setup(interval=20):
 
     result = subprocess.run(cmd_gpu)
     error = result.returncode
-    print('run code:', error)
+    print('run code:', result)
     if error != 0:
         print('An error occurred, exit')
         os.system('mv '+ini_path+' '+wait_path)
         exit()
 
+    os.system('mv '+ini_path+' '+done_path)
     # i = 0
     # while gpu_memory > 1000 or gpu_power > 40:  # set waiting condition
     #     gpu_power, gpu_memory = gpu_info()

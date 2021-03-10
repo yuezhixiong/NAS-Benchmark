@@ -401,4 +401,8 @@ def infer(valid_queue, model, criterion):
 
 
 if __name__ == '__main__':
-    main() 
+    try:
+        main() 
+    except Exception as e:
+        print(e)
+        exit(1)
