@@ -80,6 +80,7 @@ PC_DARTS_image = Genotype(normal=[('skip_connect', 1), ('sep_conv_3x3', 0), ('se
 
 
 PCDARTS = PC_DARTS_cifar
+PCDARTS_cifar100 = PC_DARTS_cifar
 
 PC_DARTS_cifar100 = PC_DARTS_cifar
 
