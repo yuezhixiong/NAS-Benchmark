@@ -39,7 +39,7 @@ def free_gpu():
         gpu_id = np.argmax(gpu_memo)
     return gpu_id
 
-def narrow_setup(interval=60):
+def narrow_setup(interval=300):
     # gpu_power, gpu_memory = gpu_info()
     error = 1
 
