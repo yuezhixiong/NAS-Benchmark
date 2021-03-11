@@ -6,7 +6,7 @@ from datetime import datetime
 
 # cmd = ['python', 'train_imagenet.py']
 # cmd = ['python', 'train_imagenet_dali.py', '--arch', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100', '--save', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100']
-memo_required = 27000
+memo_required = 32000
  
 # def gpu_info():
 #     gpu_status = os.popen('nvidia-smi | grep %').read().split('|')
@@ -39,7 +39,7 @@ def free_gpu():
         gpu_id = np.argmax(gpu_memo)
     return gpu_id
 
-def narrow_setup(interval=200):
+def narrow_setup(interval=100):
     # gpu_power, gpu_memory = gpu_info()
     error = 1
 
@@ -63,8 +63,12 @@ def narrow_setup(interval=200):
         print('An error occurred, exit')
         os.system('mv '+ini_path+' '+wait_path)
         exit()
-
-    os.system('mv '+ini_path+' '+done_path)
+    arch_name = ini_name.split('.')[0]
+    plot_file = os.path.join(arch_name, arch_name+'.pdf')
+    if os.path.isfile(plot_file):
+        os.system('mv '+ini_path+' '+done_path)
+    else:
+        os.system('mv '+ini_path+' '+wait_path)
     # i = 0
     # while gpu_memory > 1000 or gpu_power > 40:  # set waiting condition
     #     gpu_power, gpu_memory = gpu_info()
