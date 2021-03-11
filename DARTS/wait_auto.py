@@ -6,7 +6,7 @@ from datetime import datetime
 
 # cmd = ['python', 'train_imagenet.py']
 # cmd = ['python', 'train_imagenet_dali.py', '--arch', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100', '--save', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100']
-memo_required = 32000
+memo_required = 30000
  
 # def gpu_info():
 #     gpu_status = os.popen('nvidia-smi | grep %').read().split('|')
@@ -39,7 +39,7 @@ def free_gpu():
         gpu_id = np.argmax(gpu_memo)
     return gpu_id
 
-def narrow_setup(interval=100):
+def narrow_setup(interval=60):
     # gpu_power, gpu_memory = gpu_info()
     error = 1
 
