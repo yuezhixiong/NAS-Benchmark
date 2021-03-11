@@ -4,11 +4,11 @@ gpu=0
 # python train_search.py \
 # --save $save --gpu $gpu --dataset cifar10
 
-python train.py \
---save $save --dataset cifar10 --layers 20 \
---arch $save --gpu $gpu --auxiliary --cutout
+# python train.py \
+# --save $save --dataset cifar10 --layers 20 \
+# --arch $save --gpu $gpu --auxiliary --cutout
 
-model="PCDARTS/channel36_cifar10/weights.pt"
+model="PCDARTS/channel36_cifar10/best_model.pt"
 python test_adv.py --arch $save --gpu $gpu \
 --model_path $model
 
