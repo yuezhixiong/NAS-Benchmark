@@ -140,7 +140,8 @@ def main():
         pin_memory=True, num_workers=args.workers)
 
     if args.ood_outer or args.ood_inner:
-        ood_data = dset.SVHN(root=args.tmp_data_dir, split='train', download=True, transform=train_transform)
+        _, ood_transform = utils._data_transforms_svhn(args)
+        ood_data = dset.SVHN(root=args.tmp_data_dir, split='train', download=True, transform=ood_transform)
         ood_indices = list(range(len(ood_data)))
         ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
                     sampler=torch.utils.data.sampler.SubsetRandomSampler(ood_indices),
