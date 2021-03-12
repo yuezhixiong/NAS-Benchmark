@@ -84,7 +84,6 @@ alphas_normals = []
 alphas_reduces = []
 
 def main():
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     mem_size = 1000
     hold_mem = torch.cuda.FloatTensor(256,1024,mem_size)
     if not torch.cuda.is_available():
