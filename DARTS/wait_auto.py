@@ -6,7 +6,7 @@ from datetime import datetime
 
 # cmd = ['python', 'train_imagenet.py']
 # cmd = ['python', 'train_imagenet_dali.py', '--arch', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100', '--save', 'LL_acc1_ood1_UL_adv_nop_flp_mgda_abs30_gnl2_cifar100']
-memo_required = 30000
+memo_required = 32000
  
 # def gpu_info():
 #     gpu_status = os.popen('nvidia-smi | grep %').read().split('|')
