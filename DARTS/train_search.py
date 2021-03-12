@@ -84,11 +84,9 @@ alphas_normals = []
 alphas_reduces = []
 
 def main():
-    # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-    # mem_size = 1000
-    # for i in range(10):
-    #     hold_mem = torch.cuda.FloatTensor(256,1024,mem_size)
-    #     del hold_mem
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+    mem_size = 1000
+    hold_mem = torch.cuda.FloatTensor(256,1024,mem_size)
     if not torch.cuda.is_available():
         logging.info('no gpu device available')
         sys.exit(1)
@@ -173,7 +171,7 @@ def main():
 
     architect = Architect(model, args)
 
-
+    del hold_mem
     for epoch in range(args.epochs):
         scheduler.step()
         lr = scheduler.get_lr()[0]
@@ -277,7 +275,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr, 
         sols.append(logs.sol)
         loss_datas.append(logs.loss_data)
         # logging.info('grad_data = ' + str(logs.grad))
-        print(args.save)
+        print(args.save, epoch)
 
         if args.adv == 'FGSM':
             input = Variable(input, requires_grad=True).cuda()
