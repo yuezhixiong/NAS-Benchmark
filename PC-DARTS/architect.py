@@ -199,7 +199,7 @@ class Architect(object):
       self.optimizer.zero_grad()
       unrolled_loss_adv = unrolled_model._loss(adv_input, target_valid)
       grads['adv'] = list(torch.autograd.grad(unrolled_loss_adv, unrolled_model.arch_parameters(), retain_graph=True))
-      loss_data['adv'] = unrolled_loss_adv.data[0]
+      loss_data['adv'] = unrolled_loss_adv.data[0] / 2 # lossNorm
     # ---- adv loss end ----
 
     # ---- param loss ----
