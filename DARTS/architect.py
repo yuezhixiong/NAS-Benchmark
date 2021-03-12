@@ -160,7 +160,7 @@ class Architect(object):
 
     # ---- acc loss ----
     unrolled_loss = unrolled_model._loss(input_valid, target_valid)
-    loss_data['acc'] = unrolled_loss.data[0]
+    loss_data['acc'] = unrolled_loss.data[0] / 2 # lossNorm
     grads['acc'] = list(torch.autograd.grad(unrolled_loss, unrolled_model.arch_parameters(), retain_graph=True))
     # ---- acc loss end ----
 
@@ -176,7 +176,7 @@ class Architect(object):
       self.optimizer.zero_grad()
       unrolled_loss_adv = unrolled_model._loss(adv_input, target_valid)
       grads['adv'] = list(torch.autograd.grad(unrolled_loss_adv, unrolled_model.arch_parameters(), retain_graph=True))
-      loss_data['adv'] = unrolled_loss_adv.data[0]
+      loss_data['adv'] = unrolled_loss_adv.data[0] / 2 # lossNorm
     # ---- adv loss end ----
 
     # ---- param loss ----
@@ -192,7 +192,7 @@ class Architect(object):
       self.optimizer.zero_grad()
       ood_logits = unrolled_model.forward(self.ood_input)
       ood_loss = F.kl_div(input=F.log_softmax(ood_logits), target=torch.ones_like(ood_logits)/ood_logits.size()[-1])
-      ood_loss = ood_loss * 10
+      ood_loss = ood_loss * 50 # lossNorm, 10
       loss_data['ood'] = ood_loss.data[0]
       grads['ood'] = list(torch.autograd.grad(ood_loss, unrolled_model.arch_parameters(), retain_graph=True))
     # ---- ood loss end ----

@@ -66,9 +66,11 @@ def narrow_setup(interval=300):
     arch_name = ini_name.split('.')[0]
     plot_file = os.path.join(arch_name, arch_name+'.pdf')
     if os.path.isfile(plot_file):
+        print('plot exist, moving ini to done')
         os.system('mv '+ini_path+' '+done_path)
     else:
         os.system('mv '+ini_path+' '+wait_path)
+        print('plot not exist, moving ini to waiting')
     # i = 0
     # while gpu_memory > 1000 or gpu_power > 40:  # set waiting condition
     #     gpu_power, gpu_memory = gpu_info()
