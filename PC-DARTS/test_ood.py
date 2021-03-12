@@ -32,18 +32,17 @@ parser.add_argument('--cutout_length', type=int, default=16, help='cutout length
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='DARTS_V2', help='which architecture to use')
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
     format=log_format, datefmt='%m/%d %I:%M:%S %p')
 
-CIFAR_CLASSES = 10
-
 
 def main():
   if (args.arch != 'DARTS_V2') and args.model_path == ('models/DARTS_V2_best.pt'):
-    args.model_path = args.arch + '/channel36_cifar10/best_model.pt'
+    args.model_path = args.arch + '/channel36_{}/best_model.pt'.format(args.dataset)
 
   if not torch.cuda.is_available():
     logging.info('no gpu device available')
@@ -58,8 +57,19 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
+  if args.dataset == 'cifar10':
+    class_num = 10
+    _, valid_transform = utils._data_transforms_cifar10(args)
+    test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
+  elif args.dataset == 'cifar100':
+    class_num = 100
+    _, valid_transform = utils._data_transforms_cifar100(args)
+    test_data = dset.CIFAR100(root=args.data, train=False, download=True, transform=valid_transform)
+  test_queue = torch.utils.data.DataLoader(
+      test_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=1)
+
   genotype = eval("genotypes.%s" % args.arch)
-  model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
+  model = Network(args.init_channels, class_num, args.layers, args.auxiliary, genotype)
   model = model.cuda()
   utils.load(model, args.model_path)
 
@@ -67,11 +77,6 @@ def main():
 
   criterion = nn.CrossEntropyLoss()
   criterion = criterion.cuda()
-
-  _, test_transform = utils._data_transforms_cifar10(args)
-  test_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=test_transform)
-  test_queue = torch.utils.data.DataLoader(
-      test_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=1)
 
   _, ood_transform = utils._data_transforms_svhn(args)
   ood_data = dset.SVHN(root=args.data, split='test', download=True, transform=ood_transform)
@@ -84,6 +89,7 @@ def main():
   results = infer(test_queue, ood_queue, model, criterion)
   results = ['{:.2%}'.format(x)[:-1] for x in results]
   print('auroc, aupr_in, aupr_out, fpr, DE', results)
+  print(results[-2])
   # logging.info('test_acc %f', test_acc)
 
 

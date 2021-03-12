@@ -31,6 +31,7 @@ parser.add_argument('--cutout_length', type=int, default=16, help='cutout length
 parser.add_argument('--drop_path_prob', type=float, default=0.2, help='drop path probability')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='DARTS_V2', help='which architecture to use')
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'svhn'])
 args = parser.parse_args()
 
 log_format = '%(asctime)s %(message)s'
@@ -42,7 +43,7 @@ CIFAR_CLASSES = 10
 
 def main():
   if (args.arch != 'DARTS_V2') and args.model_path == ('models/DARTS_V2_best.pt'):
-    args.model_path = args.arch + '/channel36_cifar10/best_model.pt'
+    args.model_path = args.arch + '/channel36_{}/best_model.pt'.format(args.dataset)
 
   if not torch.cuda.is_available():
     logging.info('no gpu device available')
@@ -57,8 +58,13 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
+  if args.dataset == 'cifar10':
+    class_num = 10
+  elif args.dataset == 'cifar100':
+    class_num = 100
+
   genotype = eval("genotypes.%s" % args.arch)
-  model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
+  model = Network(args.init_channels, class_num, args.layers, args.auxiliary, genotype)
   model = model.cuda()
   utils.load(model, args.model_path)
 
@@ -85,7 +91,8 @@ def main():
   params_mb = params/mb
   macs_gb = macs/gb
   print('MACs: {:.2f}'.format(macs_mb), 'Params: {:.3f}'.format(params_mb))
-  print('{:.4f}'.format(macs_gb))
+  print('{:.3f}'.format(params_mb))
+  print('{:.2f}'.format(macs_mb))
   # logging.info('test_acc %f', test_acc)
 
 
