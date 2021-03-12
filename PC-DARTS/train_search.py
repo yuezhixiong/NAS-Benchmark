@@ -151,7 +151,7 @@ def main():
 
     ood_queue = None
     if args.ood_outer or args.ood_lambda:
-        ood_transform, _ = utils._data_transforms_svhn(args)
+        _, ood_transform = utils._data_transforms_svhn(args) #woOodAug
         ood_data = dset.SVHN(root=args.data, split='train', download=True, transform=ood_transform)
         ood_indices = list(range(len(ood_data)))
         ood_queue = torch.utils.data.DataLoader(ood_data, batch_size=args.batch_size,
