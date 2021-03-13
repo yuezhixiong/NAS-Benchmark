@@ -95,7 +95,7 @@ class Architect(object):
         else:
           alpha = F.softmax(unrolled_model.arch_parameters()[1]/tau, dim=-1)
 
-        u = compute_u(C_list[i], is_reduction=True)
+        u = compute_u(C_list[i], is_reduction=True) *1.5 # layerNorm
       else:
         if self.args.temperature[:-1] == 'Gumbel':
           alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
@@ -103,7 +103,7 @@ class Architect(object):
         else:
           alpha = F.softmax(unrolled_model.arch_parameters()[0]/tau, dim=-1)
 
-        u = compute_u(C_list[i], is_reduction=False)
+        u = compute_u(C_list[i], is_reduction=False) *3 # layerNorm
       loss += torch.mul(alpha, u.t()).sum()
     # print(alpha[0].data.cpu().numpy())
     

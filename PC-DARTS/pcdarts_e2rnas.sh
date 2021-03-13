@@ -1,11 +1,11 @@
 save=lossNorm_pcdarts_e2rnas
 gpu=0
 
-python train_search.py \
---save $save --gpu $gpu --dataset cifar10 --cutout \
---nop_outer --adv_outer --flp_outer --ood_lambda 1 --MGDA --constrain abs --constrain_min 3 --grad_norm l2
+# python train_search.py \
+# --save $save --gpu $gpu --dataset cifar10 --cutout \
+# --nop_outer --adv_outer --flp_outer --ood_lambda 1 --MGDA --constrain abs --constrain_min 3 --grad_norm l2
 
-python copy_genotype.py --save $save
+# python copy_genotype.py --save $save
 
 python train.py \
 --dataset cifar10 --gpu $gpu --save $save --arch $save \

@@ -1,9 +1,6 @@
 save=PCDARTS_cifar100
 gpu=0
 
-# python train_search.py \
-# --save $save --gpu $gpu --dataset cifar10
-#--batch_size 48
 # python train.py \
 # --save $save --dataset cifar100 --layers 20 \
 # --arch $save --gpu $gpu --auxiliary --cutout
