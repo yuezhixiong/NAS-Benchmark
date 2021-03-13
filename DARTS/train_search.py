@@ -84,8 +84,6 @@ alphas_normals = []
 alphas_reduces = []
 
 def main():
-    mem_size = 1000
-    hold_mem = torch.cuda.FloatTensor(256,1024,mem_size)
     if not torch.cuda.is_available():
         logging.info('no gpu device available')
         sys.exit(1)
@@ -99,6 +97,8 @@ def main():
     torch.cuda.manual_seed(args.seed)
     logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
+    mem_size = 1000
+    hold_mem = torch.cuda.FloatTensor(256,1024,mem_size)
 
     
     if args.dataset == 'cifar10':
