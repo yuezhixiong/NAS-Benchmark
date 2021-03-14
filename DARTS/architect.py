@@ -134,10 +134,10 @@ class Architect(object):
     for i in range(unrolled_model._layers):
       if unrolled_model.cells[i].reduction:
         alpha = F.softmax(unrolled_model.arch_parameters()[1], dim=-1)
-        u = compute_u(C_list[i], is_reduction=True)
+        u = compute_u(C_list[i], is_reduction=True) *1.5 # layerNorm
       else:
         alpha = F.softmax(unrolled_model.arch_parameters()[0], dim=-1)
-        u = compute_u(C_list[i], is_reduction=False)
+        u = compute_u(C_list[i], is_reduction=False) *3 # layerNorm
       loss += torch.mul(alpha, u.t()).sum()
 
     loss = loss / 1e8

@@ -21,7 +21,7 @@ gpu = args.gpu
 
 # copyfile('auto.py', os.path.join(logpath, 'auto.py'))
 adv = 'fast'
-inner_values = [(0, 1, 1)] # adv_lambda, acc_lambda, ood_lambda (0, 1, 1)
+inner_values = [(0, 1, 0)] # adv_lambda, acc_lambda, ood_lambda (0, 1, 1)
 constrain = 'abs' # min, abs
 constrain_mins = [10,9,8]
 temperature = 'none' # GumbelA, none, A
@@ -51,7 +51,7 @@ for dataset in datasets:
                     #     config_name = 'bigAlphaInit'
                     # else:
                     #     config_name = 'randomInit'
-                    config_name = 'lossNorm_'
+                    config_name = 'layerNorm_'
                     config_name += 'LL'
                     if adv != 'none':
                         if adv_lambda:
