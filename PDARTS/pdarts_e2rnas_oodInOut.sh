@@ -1,5 +1,5 @@
 save=pdarts_e2rnas_oodInOut
-gpu=$1
+gpu=0
 
 python train_search.py \
 --save $save --gpu $gpu --batch_size 48 \
@@ -12,7 +12,7 @@ python train.py \
 --save $save --dataset cifar10 --layers 20 \
 --arch $save --gpu $gpu --auxiliary --cutout 
 
-model="pdarts_e2rnas_oodInOut/cifar10_channel36/weights.pt"
+model=$save/cifar10_channel36/weights.pt
 python test_adv.py --arch $save --gpu $gpu \
 --model_path $model
 
