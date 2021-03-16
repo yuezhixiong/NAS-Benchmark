@@ -1,5 +1,5 @@
 save=lossNorm_pcdarts_e2rnas
-gpu=0
+gpu=$1
 
 # python train_search.py \
 # --save $save --gpu $gpu --dataset cifar10 --cutout \

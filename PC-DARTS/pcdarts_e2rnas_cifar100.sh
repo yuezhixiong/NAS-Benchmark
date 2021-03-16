@@ -1,5 +1,5 @@
 save=lossNorm_pcdarts_e2rnas_cifar100
-gpu=0
+gpu=$1
 
 # python train_search.py \
 # --save $save --gpu $gpu --dataset cifar100 --cutout \
@@ -7,16 +7,16 @@ gpu=0
 
 # python copy_genotype.py --save $save
 
-python train.py \
---dataset cifar100 --gpu $gpu --save $save --arch $save \
---auxiliary --cutout --layers 20 #20 for CIFAR datasets, 8 for Sport8, MIT67 and flowers102
+# python train.py \
+# --dataset cifar100 --gpu $gpu --save $save --arch $save \
+# --auxiliary --cutout --layers 20 #20 for CIFAR datasets, 8 for Sport8, MIT67 and flowers102
 
-model=$save/channel36_cifar10/weights.pt
+model=$save/channel36_cifar100/best_model.pt
 python test_adv.py --arch $save --gpu $gpu \
---model_path $model
+--model_path $model --dataset cifar100
 
 python test_ood.py --arch $save --gpu $gpu \
---model_path $model
+--model_path $model --dataset cifar100
 
 python test_flp.py --arch $save --gpu $gpu \
---model_path $model
+--model_path $model --dataset cifar100
